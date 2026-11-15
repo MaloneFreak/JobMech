@@ -9,6 +9,13 @@ T.run('01-onboarding', async () => {
   ok('developer mode offers the offline test engine', byText('.provopt', 'Offline test engine'));
   eq('all real providers are offered', ['OpenRouter', 'Google Gemini', 'Groq', 'Anthropic Claude', 'OpenAI', 'Mistral', 'Ollama', 'Custom endpoint'].filter((n) => !byText('.provopt', n)), []);
 
+  const covered = $$('.provopt').filter((card) => {
+    const tag = card.querySelector('.tag').getBoundingClientRect();
+    const hit = (el) => { const r = el.getBoundingClientRect(); return tag.left < r.right && r.left < tag.right && tag.top < r.bottom && r.top < tag.bottom; };
+    return hit(card.querySelector('.n')) || hit(card.querySelector('.d')) || tag.right > card.getBoundingClientRect().right;
+  }).map((card) => card.querySelector('.n').textContent);
+  eq('no tag covers the name or description of its engine', covered, []);
+
   byText('.provopt', 'Offline test engine').click();
   ok('choosing an engine selects its model', await waitFor(() => store.state.settings.ai.models.mock === 'mock-writer'));
   byText('.onb-body .btn', 'Test connection').click();
