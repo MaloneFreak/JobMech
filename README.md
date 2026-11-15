@@ -126,7 +126,13 @@ tests\          test runner, suites and fixtures
 _legacy_v1\     JobMech 1, kept for reference
 ```
 
+## License
+
+JobMech is released under the [MIT License](LICENSE).
+
 ## Third-party software
+
+These components are bundled with JobMech and keep their own licenses:
 
 - [pdf.js](https://mozilla.github.io/pdf.js/) by Mozilla, Apache License 2.0 (`app\vendor\pdfjs\LICENSE`)
 - Microsoft Edge WebView2 SDK (`app\vendor\WebView2-LICENSE.txt`)
