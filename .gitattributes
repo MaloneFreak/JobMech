@@ -1,0 +1,8 @@
+# The same bytes on every machine: prompts and tests contain multi-line text that must keep LF.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.dll binary
+*.exe binary
+*.png binary
+*.ico binary

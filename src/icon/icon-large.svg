@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="tile" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FF8147"/>
+      <stop offset="1" stop-color="#E5400D"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFF1E9"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="url(#tile)"/>
+  <rect x="10" y="10" width="236" height="236" rx="58" fill="url(#gloss)"/>
+  <!-- sheet of paper with a folded corner -->
+  <path d="M82 46h62l40 40v106a16 16 0 0 1-16 16H82a16 16 0 0 1-16-16V62a16 16 0 0 1 16-16z" fill="#7A1D00" opacity="0.18" transform="translate(0 6)"/>
+  <path d="M82 46h62l40 40v106a16 16 0 0 1-16 16H82a16 16 0 0 1-16-16V62a16 16 0 0 1 16-16z" fill="url(#paper)"/>
+  <path d="M144 46v26a14 14 0 0 0 14 14h26z" fill="#FFC4AA"/>
+  <rect x="86" y="100" width="50" height="13" rx="6.5" fill="#1B1D21"/>
+  <rect x="86" y="127" width="78" height="9" rx="4.5" fill="#E3CFC4"/>
+  <rect x="86" y="146" width="78" height="9" rx="4.5" fill="#E3CFC4"/>
+  <rect x="86" y="165" width="40" height="9" rx="4.5" fill="#E3CFC4"/>
+  <!-- the "mech": a gear set into the corner of the page -->
+  <g transform="translate(176 180)">
+    <circle r="52" fill="#EA4A14"/>
+    <path fill="#1B1D21" stroke="#1B1D21" stroke-width="5" stroke-linejoin="round" d="M-8.3 -40.2 8.3 -40.2 8.6 -30.9 15.8 -27.9 22.5 -34.3 34.3 -22.5 27.9 -15.8 30.9 -8.6 40.2 -8.3 40.2 8.3 30.9 8.6 27.9 15.8 34.3 22.5 22.5 34.3 15.8 27.9 8.6 30.9 8.3 40.2 -8.3 40.2 -8.6 30.9 -15.8 27.9 -22.5 34.3 -34.3 22.5 -27.9 15.8 -30.9 8.6 -40.2 8.3 -40.2 -8.3 -30.9 -8.6 -27.9 -15.8 -34.3 -22.5 -22.5 -34.3 -15.8 -27.9 -8.6 -30.9z"/>
+    <circle r="13.5" fill="#FFF6F1"/>
+  </g>
+</svg>

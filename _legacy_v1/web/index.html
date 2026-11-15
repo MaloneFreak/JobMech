@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobMech — Tailored International CV & Cover Letter Studio</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-topbar">
+    <div class="brand-wrap">
+      <div class="brand-logo">JM</div>
+      <div>
+        <span class="brand-title">JobMech</span>
+        <span class="brand-subtitle">Humanized International CV &amp; Cover Letter Studio</span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="status-pill" id="aiStatusPill" title="Click to configure AI provider or local models" style="cursor:pointer;" onclick="openSetupModal(1)">
+        <span class="status-dot" id="aiStatusDot"></span>
+        <span id="aiStatusText">AI: Checking...</span>
+      </div>
+
+      <div class="status-pill" id="memoryStatusPill" title="Click to open Memory Bank (data/memory.md)" style="cursor:pointer;" onclick="switchMainView('memory')">
+        <span>🧠 Memory Auto-Save: <strong id="memoryAutoLabel">ON</strong></span>
+      </div>
+
+      <button class="btn btn-sm" onclick="openSetupModal(1)">⚙️ AI &amp; Profile Setup</button>
+      <button class="btn btn-sm" onclick="openDiskFolder('exports')">📂 Exports Folder</button>
+      <button class="btn btn-sm" onclick="shutdownJobMechApp()" title="Close JobMech background app cleanly" style="border-color:rgba(244,63,94,0.35); color:#fda4af;">⏻ Quit</button>
+    </div>
+  </header>
+
+  <!-- Main App Body -->
+  <div class="app-body">
+    <!-- Left Sidebar: Navigation & Application History -->
+    <aside class="sidebar">
+      <div class="sidebar-nav">
+        <button class="nav-btn nav-btn-primary" id="navNewAppBtn" onclick="startNewApplication()">
+          <span>＋ New Job Application</span>
+        </button>
+        <button class="nav-btn" id="navMemoryBtn" onclick="switchMainView('memory')">
+          <span>🧠 Candidate Memory (memory.md)</span>
+          <span class="badge badge-emerald" id="sidebarPhotoBadge">Photo</span>
+        </button>
+        <button class="nav-btn" id="navSetupBtn" onclick="openSetupModal(1)">
+          <span>🤖 AI Models &amp; Profile Setup</span>
+        </button>
+      </div>
+
+      <div class="sidebar-history-header">
+        <span class="sidebar-history-title">Application History</span>
+        <span class="badge badge-blue" id="historyCountBadge">0</span>
+      </div>
+
+      <div class="history-search-wrap">
+        <input type="text" id="historySearchInput" class="history-search" placeholder="Search saved applications..." oninput="renderHistorySidebar()" />
+      </div>
+
+      <div class="history-list" id="historyList">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="workspace">
+
+      <!-- =================================================================
+           VIEW 1: APPLICATION WORKFLOW & MINI-DASHBOARD
+           ================================================================= -->
+      <div id="viewStudio" class="view-container">
+
+        <!-- Guided 3-Step Workflow Bar -->
+        <div class="workflow-stepper">
+          <div class="step-pill active" id="stepPill1" onclick="goToWorkflowStep(1)">
+            <span class="step-num">1</span>
+            <span>1. Your CV / Story &amp; Job Posting</span>
+          </div>
+          <div class="step-divider"></div>
+          <div class="step-pill" id="stepPill2" onclick="goToWorkflowStep(2)">
+            <span class="step-num">2</span>
+            <span>2. Gap Questions, Country Style &amp; Palette</span>
+          </div>
+          <div class="step-divider"></div>
+          <div class="step-pill" id="stepPill3" onclick="goToWorkflowStep(3)">
+            <span class="step-num">3</span>
+            <span>3. Application Mini-Dashboard (.PDF / .DOCX)</span>
+          </div>
+        </div>
+
+        <!-- STEP 1: PASTE CV / NATURAL STORY + PASTE JOB DESCRIPTION -->
+        <div id="workflowStep1">
+          <div class="grid-2 grid-stretch">
+            <!-- Left Column: Base CV or Career Story in Natural Language -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">
+                    <span>📄 Your CV or Career Story (Natural Language)</span>
+                  </div>
+                  <p class="card-subtitle">
+                    Paste your existing CV, attach a file (.PDF, .DOCX, .MD, .TXT), or write your career story naturally. Saved stories load automatically from Memory!
+                  </p>
+                </div>
+                <div style="display:flex; gap:6px; flex-shrink:0; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                  <span class="badge badge-emerald" id="storyMemoryLoadedBadge">Loaded from memory.md</span>
+                  <button class="btn btn-sm btn-emerald" onclick="saveCurrentStoryToMemoryNow()" title="Save your current CV/story directly to memory.md">💾 Save to Memory</button>
+                  <button class="btn btn-sm" onclick="clearStoryInput()" title="Clear text box">Clear</button>
+                </div>
+              </div>
+
+              <!-- File Attachment Dropzone (.PDF, .DOCX, .MD, .TXT) -->
+              <label class="attach-dropzone" id="storyDropzone" for="storyFileInput"
+                     ondragover="handleStoryDragOver(event)"
+                     ondragleave="handleStoryDragLeave(event)"
+                     ondrop="handleStoryFileDrop(event)">
+                <div class="attach-dropzone-text">
+                  <strong style="font-size:13px; color:#fff;">📎 Attach Existing CV, Cover Letter, or AI Profile (.PDF, .DOCX, .MD, .TXT)</strong>
+                  <span style="font-size:11.5px; color:var(--text-muted);">Click to browse or drag &amp; drop one or more files here — text is extracted straight into your story box</span>
+                </div>
+                <span class="btn btn-sm btn-primary" style="pointer-events:none;">Browse Files</span>
+                <input type="file" id="storyFileInput" accept=".pdf,.docx,.md,.markdown,.txt" multiple style="display:none;" onchange="handleStoryFilesSelected(event)" />
+              </label>
+
+              <div id="attachedStoryChips" class="attach-chips hidden"></div>
+
+              <div class="form-group flex-fill">
+                <textarea id="baseStoryInput" class="form-textarea" rows="11" placeholder="Write your career story in natural language OR attach your old CV / Cover Letter / .md file above..."></textarea>
+              </div>
+
+              <!-- Preview of Incremental Facts already saved in memory.md -->
+              <div id="learnedFactsPreviewBox" class="info-banner" style="margin-bottom:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <strong style="color:#fff;">🧠 Additional Facts Remembered in memory.md:</strong>
+                  <button class="btn btn-sm" onclick="switchMainView('memory')">Edit Memory File</button>
+                </div>
+                <div id="learnedFactsPreviewText" style="font-size:12px; color:var(--text-secondary); max-height:110px; overflow-y:auto; white-space:pre-line;">
+                  No extra Q&amp;A facts saved yet. When you answer gap questions and save to memory, they will accumulate here automatically!
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Paste Target Job Description -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">
+                    <span>🎯 Target Job Description (Paste Job Ad)</span>
+                  </div>
+                  <p class="card-subtitle">
+                    Paste the job posting text below. JobMech will analyze what is missing, detect the job's country format (e.g., German Lebenslauf in English), and prepare targeted questions.
+                  </p>
+                </div>
+                <button class="btn btn-sm" onclick="document.getElementById('jobPostingInput').value=''" title="Clear job text">Clear</button>
+              </div>
+
+              <div class="form-group flex-fill">
+                <textarea id="jobPostingInput" class="form-textarea" rows="14" placeholder="Paste the full job description here (responsibilities, requirements, company description, location)..."></textarea>
+              </div>
+
+              <div class="grid-2" style="gap:12px; margin-bottom:14px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Job Country / Cultural CV Style</label>
+                  <select id="countryOverrideSelect" class="form-select">
+                    <option value="AUTO">✨ Auto-Detect Country from Job Text</option>
+                    <option value="DE">🇩🇪 Germany / DACH (Tabellarischer Lebenslauf)</option>
+                    <option value="US">🇺🇸 United States (ATS Executive, No Photo)</option>
+                    <option value="GB">🇬🇧 United Kingdom (British Profile, No Photo)</option>
+                    <option value="CH">🇨🇭 Switzerland (Swiss Precision Lebenslauf)</option>
+                    <option value="NL">🇳🇱 Netherlands / Nordics (Direct &amp; Modern)</option>
+                    <option value="FR">🇫🇷 France / Continental Europe (Structured + Photo)</option>
+                    <option value="BR">🇧🇷 Brazil / Portugal / LATAM</option>
+                    <option value="CA">🇨🇦 Canada (North American Standard, No Photo)</option>
+                    <option value="AU">🇦🇺 Australia (Commonwealth Standard, No Photo)</option>
+                    <option value="JP">🇯🇵 Japan / APAC International</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">CV &amp; Cover Letter Text Language</label>
+                  <select id="languageOverrideSelect" class="form-select">
+                    <option value="AUTO">✨ Match Job Posting Text (Default: English)</option>
+                    <option value="English">🇬🇧 English (Even if Job is in Germany/EU)</option>
+                    <option value="German">🇩🇪 German (Deutsch)</option>
+                    <option value="Portuguese">🇧🇷 Portuguese (Português)</option>
+                    <option value="French">🇫🇷 French (Français)</option>
+                    <option value="Spanish">🇪🇸 Spanish (Español)</option>
+                  </select>
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-lg" style="width:100%;" onclick="analyzeJobAndFindGaps()">
+                <span>🔍 Analyze Job Posting &amp; Check Missing Details →</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: GAP ANALYSIS QUESTIONS, COUNTRY PHOTO CHECK & COLOR PALETTE -->
+        <div id="workflowStep2" class="hidden">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header">
+              <div>
+                <div class="card-title">
+                  <span>🌍 Detected Job Profile &amp; Country Cultural Standard</span>
+                </div>
+                <p class="card-subtitle" id="detectedCultureExplanation">
+                  Analyzing cultural CV norms for the target country...
+                </p>
+              </div>
+              <span class="badge badge-blue" id="detectedCountryBadge" style="font-size:13px; padding:6px 12px;">🇩🇪 Germany Style</span>
+            </div>
+
+            <div class="grid-2" style="gap:14px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Application Name in History (Role @ Company)</label>
+                <input type="text" id="detectedAppNameInput" class="form-input" placeholder="e.g., Senior Mechanical Engineer @ Siemens (Munich)" />
+              </div>
+
+              <div class="grid-2" style="gap:10px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Country CV Layout</label>
+                  <select id="step2CountrySelect" class="form-select" onchange="onStep2CountryChange()">
+                    <option value="DE">🇩🇪 Germany / Austria (Lebenslauf)</option>
+                    <option value="CH">🇨🇭 Switzerland (Swiss Lebenslauf)</option>
+                    <option value="US">🇺🇸 United States (ATS Standard)</option>
+                    <option value="GB">🇬🇧 United Kingdom (British Standard)</option>
+                    <option value="NL">🇳🇱 Netherlands / Nordics</option>
+                    <option value="FR">🇫🇷 France / Spain / Italy (EU)</option>
+                    <option value="BR">🇧🇷 Brazil / Portugal</option>
+                    <option value="CA">🇨🇦 Canada</option>
+                    <option value="AU">🇦🇺 Australia</option>
+                    <option value="JP">🇯🇵 Japan / APAC</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Document Text Language</label>
+                  <select id="step2LangSelect" class="form-select">
+                    <option value="English">English</option>
+                    <option value="German">German</option>
+                    <option value="Portuguese">Portuguese</option>
+                    <option value="French">French</option>
+                    <option value="Spanish">Spanish</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Personal Photo Cultural Rule Bar -->
+            <div class="photo-box" style="margin-top:16px;" id="step2PhotoBox">
+              <img id="step2PhotoThumb" class="photo-thumb" src="" alt="Candidate Portrait" style="display:none;" />
+              <div style="flex:1;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                  <strong id="step2PhotoRuleTitle" style="font-size:14px; color:#fff;">Personal Photo Rule for Target Country</strong>
+                  <span class="badge badge-emerald" id="step2PhotoRuleBadge">Recommended</span>
+                </div>
+                <p id="step2PhotoRuleDesc" style="font-size:12.5px; color:var(--text-secondary); margin-bottom:8px;">
+                  In Germany (DACH), attaching a professional portrait photo in the top-right corner of the Lebenslauf is standard cultural practice.
+                </p>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <label class="checkbox-label" style="font-size:12.5px;">
+                    <input type="checkbox" id="step2IncludePhotoCheck" checked />
+                    <span>Include my Personal Photo from Memory on this CV</span>
+                  </label>
+                  <label class="btn btn-sm" style="cursor:pointer;">
+                    <span>📷 Upload / Change Photo in Memory</span>
+                    <input type="file" accept="image/*" style="display:none;" onchange="handlePhotoUpload(event)" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 grid-stretch">
+            <!-- Left Card: Per-Question Gap Analysis & Context-Rich Memory -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">
+                    <span>💡 Missing Details &amp; Anti-Generic Questions</span>
+                  </div>
+                  <p class="card-subtitle">
+                    Answer each relevant question below in natural language. If a question asks about a tool you never used, click <strong>"Haven't used / Skip"</strong> (positive answers are saved with their question context to <code>memory.md</code>; "No / Never" answers won't clutter it).
+                  </p>
+                </div>
+                <span class="badge badge-amber">High-Precision Tailoring</span>
+              </div>
+
+              <div class="gap-questions-list" id="gapQuestionsList">
+                <!-- Populated dynamically with per-question cards -->
+              </div>
+
+              <div class="form-group" style="margin-top:auto; margin-bottom:0;">
+                <label class="form-label">
+                  ➕ Additional Context, Projects, or Metrics Not Covered Above (Optional):
+                </label>
+                <textarea id="gapExtraNotesInput" class="form-textarea" rows="3" placeholder="Optional extra details (e.g., team size, availability, salary notes, or achievements you want emphasized)..."></textarea>
+              </div>
+            </div>
+
+            <!-- Right Card: Pre-defined Professional Color Palette & Humanizer Settings -->
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">
+                    <span>🎨 Professional Color Palette &amp; Humanizer</span>
+                  </div>
+                  <p class="card-subtitle">
+                    The structural layout is locked to the best standard for the job's country. Choose a refined, recruiter-approved color palette to subtly distinguish your documents:
+                  </p>
+                </div>
+              </div>
+
+              <div class="palette-grid" id="step2PaletteGrid">
+                <!-- Populated by app.js -->
+              </div>
+
+              <div class="info-banner" style="margin-top:18px; margin-bottom:0;">
+                <strong style="color:#fff;">🛡️ Built-in Anti-AI Humanizer Active:</strong>
+                <ul style="margin-top:6px; padding-left:18px; font-size:12px; color:var(--text-secondary);">
+                  <li>Strictly removes all em-dashes (<code>—</code>) and robotic punctuation patterns.</li>
+                  <li>Bans AI clichés (<em>"delve", "tapestry", "testament", "spearheaded", "thrilled", "synergy"</em>).</li>
+                  <li>Writes grounded, natural, human sentences tailored to the target country's tone.</li>
+                </ul>
+              </div>
+
+              <!-- Memory Save Bar -->
+              <div class="memory-save-bar">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="saveToMemoryCheck" checked />
+                  <span>💾 Save my story &amp; these new answers to Memory (<code>data/memory.md</code>)</span>
+                </label>
+
+                <label class="checkbox-label" style="font-size:12px; color:var(--text-secondary);">
+                  <input type="checkbox" id="autoSaveAlwaysToggle" onchange="toggleAutoSaveMemorySetting(this.checked)" />
+                  <span>Always auto-save automatically</span>
+                </label>
+              </div>
+
+              <div style="display:flex; gap:10px; margin-top:auto;">
+                <button class="btn" onclick="goToWorkflowStep(1)">← Back</button>
+                <button class="btn btn-emerald btn-lg" style="flex:1;" onclick="generateTailoredDocuments()">
+                  <span>✨ Generate Tailored CV &amp; Cover Letter →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: APPLICATION MINI-DASHBOARD (CV, COVER LETTER, .PDF & .DOCX EXPORT) -->
+        <div id="workflowStep3" class="hidden">
+
+          <!-- Application Mini-Dashboard Header -->
+          <div class="card" style="margin-bottom:14px; padding:14px 18px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;">
+              <div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <h2 id="dashAppTitle" style="font-size:20px; font-weight:800; color:#fff;">Application Dashboard</h2>
+                  <span class="badge badge-blue" id="dashCountryBadge">🇩🇪 German Lebenslauf Style (EN)</span>
+                  <span class="badge badge-emerald" id="dashHumanizerBadge">✓ Humanized: 0 Em-Dashes | 0 AI Clichés</span>
+                </div>
+                <p id="dashAppMeta" style="font-size:12.5px; color:var(--text-muted); margin-top:4px;">
+                  Created today • Saved in Application History
+                </p>
+              </div>
+
+              <!-- Quick Memory Save / Sync Action & Back to Home -->
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <label class="checkbox-label" style="font-size:12.5px; background:rgba(16,185,129,0.12); padding:7px 12px; border-radius:6px; border:1px solid rgba(16,185,129,0.35);">
+                  <input type="checkbox" id="dashSaveMemoryCheck" onchange="onDashSaveMemoryToggle(this.checked)" />
+                  <span id="dashSaveMemoryLabel">Save to Memory (memory.md)</span>
+                </label>
+                <button class="btn btn-sm" onclick="reRunHumanizerPass()" title="Run strict Humanizer pass to strip any dashes or AI phrasing">✨ Polish &amp; Re-Humanize</button>
+                <button class="btn btn-sm" id="toggleEditDocBtn" onclick="toggleInlineDocumentEditing()">✏️ Edit Text Inline</button>
+                <button class="btn btn-primary btn-sm" onclick="startNewApplication()" title="Finish and return to Home screen for a new application">← Back to Home</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Download & View Toolbar -->
+          <div class="doc-preview-toolbar">
+            <div class="doc-tabs">
+              <button class="doc-tab active" id="tabBtnBoth" onclick="setDocPreviewTab('both')">Side-by-Side (CV + Cover Letter)</button>
+              <button class="doc-tab" id="tabBtnCv" onclick="setDocPreviewTab('cv')">Curriculum Vitae (CV)</button>
+              <button class="doc-tab" id="tabBtnCl" onclick="setDocPreviewTab('cl')">Cover Letter</button>
+              <button class="doc-tab" id="tabBtnInfo" onclick="setDocPreviewTab('info')">Job Ad &amp; Q&amp;A Log</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <div class="zoom-pills" title="Preview zoom on screen (exported files are always full A4)">
+                <button type="button" class="zoom-pill active" id="zoomBtnFit" onclick="setSheetPreviewZoom('fit')">Fit</button>
+                <button type="button" class="zoom-pill" id="zoomBtn85" onclick="setSheetPreviewZoom('85')">85%</button>
+                <button type="button" class="zoom-pill" id="zoomBtn100" onclick="setSheetPreviewZoom('100')">100%</button>
+              </div>
+
+              <select id="dashPaletteSelect" class="form-select" style="width:auto; padding:6px 10px; font-size:12.5px;" onchange="changeDashboardPalette(this.value)">
+                <option value="navy">🎨 Palette: Executive Navy</option>
+                <option value="slate">🎨 Palette: Charcoal &amp; Slate</option>
+                <option value="forest">🎨 Palette: Alpine Forest</option>
+                <option value="burgundy">🎨 Palette: Oxford Burgundy</option>
+                <option value="teal">🎨 Palette: Nordic Steel Teal</option>
+                <option value="espresso">🎨 Palette: Warm Espresso</option>
+              </select>
+
+              <!-- Single Sophisticated Download Dropdown Menu -->
+              <div class="dropdown-wrap" id="downloadDropdownWrap">
+                <button class="dropdown-trigger" id="downloadDropdownBtn" onclick="toggleDownloadDropdown(event)">
+                  <span>⬇️ Download as .PDF or .DOCX</span>
+                  <span style="font-size:11px; opacity:0.9;">▾</span>
+                </button>
+                <div class="dropdown-menu hidden" id="downloadDropdownMenu">
+                  <div class="dropdown-section-label">Curriculum Vitae (CV)</div>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('cv', 'pdf')">
+                    <span>📄 Save CV as .PDF</span>
+                    <span class="dropdown-item-sub">Save As</span>
+                  </button>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('cv', 'docx')">
+                    <span>📝 Save CV as .DOCX</span>
+                    <span class="dropdown-item-sub">Save As</span>
+                  </button>
+
+                  <div class="dropdown-divider"></div>
+                  <div class="dropdown-section-label">Cover Letter</div>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('coverLetter', 'pdf')">
+                    <span>📄 Save Cover Letter as .PDF</span>
+                    <span class="dropdown-item-sub">Save As</span>
+                  </button>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('coverLetter', 'docx')">
+                    <span>📝 Save Cover Letter as .DOCX</span>
+                    <span class="dropdown-item-sub">Save As</span>
+                  </button>
+
+                  <div class="dropdown-divider"></div>
+                  <div class="dropdown-section-label">Both Documents (2 Separate Files)</div>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('both', 'pdf')">
+                    <span>📦 Save Both as .PDF</span>
+                    <span class="dropdown-item-sub">_CV &amp; _CoverLetter</span>
+                  </button>
+                  <button class="dropdown-item" onclick="handleDropdownDownload('both', 'docx')">
+                    <span>📦 Save Both as .DOCX</span>
+                    <span class="dropdown-item-sub">_CV &amp; _CoverLetter</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document Sheets Container -->
+          <div id="sheetsContainer" class="sheets-wrapper view-both" data-zoom="fit">
+            <!-- CV A4 Sheet -->
+            <div id="cvSheetWrap">
+              <div style="margin-bottom:8px; color:var(--text-secondary); font-size:12.5px; font-weight:600;">
+                <span>📄 Tailored Curriculum Vitae (CV)</span>
+              </div>
+              <div id="cvSheet" class="a4-sheet">
+                <!-- Rendered dynamically by renderActiveApplicationSheets() -->
+              </div>
+            </div>
+
+            <!-- Cover Letter A4 Sheet -->
+            <div id="clSheetWrap">
+              <div style="margin-bottom:8px; color:var(--text-secondary); font-size:12.5px; font-weight:600;">
+                <span>✉️ Tailored Cover Letter</span>
+              </div>
+              <div id="clSheet" class="a4-sheet">
+                <!-- Rendered dynamically by renderActiveApplicationSheets() -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Completion Footer Bar (Save Both Separate Files + Return to Start) -->
+          <div class="card step3-footer-bar">
+            <span style="font-size:13px; color:var(--text-secondary);">
+              Ready to apply? Save <strong>CV &amp; Cover Letter together as two separate files</strong> or return to Home for another job.
+            </span>
+            <div class="step3-footer-actions">
+              <button class="btn btn-emerald" onclick="handleDropdownDownload('both', 'pdf')" title="Save both CV and Cover Letter as two separate .pdf files in one folder pick">
+                <span>📦 Save Both as .PDF</span>
+              </button>
+              <button class="btn" onclick="handleDropdownDownload('both', 'docx')" title="Save both CV and Cover Letter as two separate .docx files in one folder pick">
+                <span>📝 Save Both as .DOCX</span>
+              </button>
+              <button class="btn btn-primary" onclick="startNewApplication()">
+                <span>← Return to Start</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Job Posting & Q&A Archive Tab -->
+          <div id="dashJobInfoPanel" class="card hidden" style="margin-top:16px;">
+            <div class="grid-2">
+              <div>
+                <h3 style="font-size:15px; margin-bottom:8px; color:#fff;">Original Job Description</h3>
+                <pre id="dashOriginalJobText" style="white-space:pre-wrap; font-size:12.5px; color:var(--text-secondary); background:var(--bg-input); padding:14px; border-radius:8px; max-height:420px; overflow-y:auto; font-family:inherit;"></pre>
+              </div>
+              <div>
+                <h3 style="font-size:15px; margin-bottom:8px; color:#fff;">Additional Details &amp; Q&amp;A Provided for This Role</h3>
+                <pre id="dashGapAnswersText" style="white-space:pre-wrap; font-size:12.5px; color:var(--text-secondary); background:var(--bg-input); padding:14px; border-radius:8px; max-height:420px; overflow-y:auto; font-family:inherit;"></pre>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- =================================================================
+           VIEW 2: CANDIDATE MEMORY BANK (data/memory.md & PHOTO)
+           ================================================================= -->
+      <div id="viewMemory" class="view-container hidden">
+        <div class="card" style="margin-bottom:22px;">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🧠 Candidate Persistent Memory Bank (<code>data/memory.md</code>)</div>
+              <p class="card-subtitle">
+                Everything saved here is automatically read by the AI on every future job application so you never have to re-type your CV story or answer the same question twice.
+              </p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-sm" onclick="downloadMemoryMarkdownFile()">⬇️ Download memory.md</button>
+              <button class="btn btn-sm" onclick="openDiskFolder('data')">📂 Open data/memory.md in Explorer</button>
+              <button class="btn btn-primary btn-sm" onclick="saveRawMemoryMarkdown()">💾 Save Changes to memory.md</button>
+            </div>
+          </div>
+
+          <!-- Auto-Save Always Master Switch -->
+          <div class="memory-save-bar" style="margin-top:0;">
+            <div>
+              <label class="checkbox-label">
+                <input type="checkbox" id="memoryViewAutoSaveCheck" onchange="toggleAutoSaveMemorySetting(this.checked)" />
+                <span>⚡ Auto-Save New Information to Memory Always (Pre-checks the save box &amp; saves automatically)</span>
+              </label>
+              <p style="font-size:12px; color:var(--text-secondary); margin-left:28px; margin-top:3px;">
+                When enabled, every time you answer new gap questions for a job application, JobMech automatically merges those new facts into <code>data/memory.md</code>.
+              </p>
+            </div>
+            <span class="badge badge-emerald" id="memoryFileLocationBadge">data/memory.md</span>
+          </div>
+
+          <div class="grid-2">
+            <!-- Left: Personal Photo in Memory -->
+            <div class="card" style="background:var(--bg-input);">
+              <div class="card-title" style="font-size:14.5px; margin-bottom:8px;">📷 Personal Portrait Photo in Memory</div>
+              <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;">
+                Attach your professional portrait photo once here. JobMech will automatically include it when generating CVs for countries that expect a photo (e.g., Germany, Switzerland, Austria, France, Brazil, Japan) and automatically omit it for countries where photos are discouraged (USA, UK, Canada, Australia).
+              </p>
+              <div class="photo-box">
+                <img id="memoryPhotoPreview" class="photo-thumb" src="" alt="No photo uploaded" />
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label class="btn btn-primary btn-sm" style="cursor:pointer;">
+                    <span>Upload / Replace Portrait Photo</span>
+                    <input type="file" accept="image/*" style="display:none;" onchange="handlePhotoUpload(event)" />
+                  </label>
+                  <button class="btn btn-sm" onclick="removeSavedPhoto()">Remove Photo</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Quick Personal Contact Info -->
+            <div class="card" style="background:var(--bg-input);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div class="card-title" style="font-size:14.5px;">👤 Core Candidate Profile</div>
+                <button class="btn btn-sm" onclick="openSetupModal(2)">Edit Profile Fields</button>
+              </div>
+              <div id="memoryProfileSummary" style="font-size:13px; color:var(--text-secondary); line-height:1.65;">
+                <!-- Populated by app.js -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Raw Markdown Editor for memory.md -->
+          <div class="form-group" style="margin-top:18px; margin-bottom:0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label class="form-label" style="margin-bottom:0;">📄 Direct Markdown Editor (<code>data/memory.md</code> — Read &amp; Updated by AI):</label>
+              <span style="font-size:11.5px; color:var(--text-muted);">You can freely edit, organize, or add notes directly in Markdown below</span>
+            </div>
+            <textarea id="rawMemoryTextarea" class="form-textarea" rows="18" style="font-family:Consolas, 'Courier New', monospace; font-size:13px;"></textarea>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- =====================================================================
+       ONBOARDING & AI / PROFILE SETUP MODAL
+       ===================================================================== -->
+  <div id="setupModalOverlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+        <div>
+          <h2 style="font-size:21px; font-weight:800; color:#fff;">Welcome to JobMech — Setup &amp; Configuration</h2>
+          <p style="font-size:13px; color:var(--text-muted); margin-top:2px;">
+            Configure your AI engine (Local or Cloud API) and answer a few basic profile questions once.
+          </p>
+        </div>
+        <button class="btn btn-sm" onclick="closeSetupModal()">✕ Close</button>
+      </div>
+
+      <!-- Modal Step Tabs -->
+      <div class="doc-tabs" style="margin-bottom:18px;">
+        <button class="doc-tab active" id="setupTabBtn1" onclick="switchSetupStep(1)">1. AI Engine Setup (Local or Cloud API)</button>
+        <button class="doc-tab" id="setupTabBtn2" onclick="switchSetupStep(2)">2. Your Name, Contact &amp; Photo</button>
+      </div>
+
+      <!-- SETUP STEP 1: AI PROVIDER & LOCAL MODEL MANAGER -->
+      <div id="setupStep1">
+        <div class="grid-2" style="gap:16px; margin-bottom:16px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Select AI Mode / Provider</label>
+            <select id="setupAiProvider" class="form-select" onchange="onAiProviderSelectChange()">
+              <option value="ollama">💻 Local AI via Ollama (Free, 100% Private on Your PC)</option>
+              <option value="gemini">☁️ Google Gemini API (Fast &amp; Free Tier Available)</option>
+              <option value="openai">☁️ OpenAI API (GPT-4o / GPT-4o-mini)</option>
+              <option value="anthropic">☁️ Anthropic Claude API (Claude 3.5 / 3.7 Sonnet)</option>
+              <option value="groq">☁️ Groq Cloud API (Ultra-Fast Llama 3.3 70B)</option>
+              <option value="openrouter">☁️ OpenRouter API (Any Model)</option>
+              <option value="lmstudio">💻 Local LM Studio Server (http://127.0.0.1:1234)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Selected Model Name</label>
+            <input type="text" id="setupAiModel" class="form-input" value="qwen2.5:7b" placeholder="e.g., qwen2.5:7b, gpt-4o, gemini-2.5-flash" />
+          </div>
+        </div>
+
+        <!-- Cloud API Key Box -->
+        <div id="cloudApiBox" class="card hidden" style="background:var(--bg-input); margin-bottom:16px; padding:16px;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="form-label" id="apiKeyLabel">API Key</label>
+            <input type="password" id="setupApiKey" class="form-input" placeholder="Paste your API key here (stored locally in data/profile.json)..." />
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--text-muted);">
+            <span id="apiKeyHint">Your key is saved strictly on your own computer in data/profile.json.</span>
+            <button class="btn btn-sm" onclick="testAiConnection()">🔌 Test AI Connection</button>
+          </div>
+        </div>
+
+        <!-- Local AI (Ollama) Downloader & Model Recommendations -->
+        <div id="localOllamaBox" class="card" style="background:var(--bg-input); margin-bottom:16px; padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:14.5px; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px;">
+                <span>🖥️ Local AI Model Manager (Ollama)</span>
+                <span class="badge badge-amber" id="ollamaRuntimeBadge">Checking status...</span>
+              </div>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                Download a recommended open-weights model directly to your computer, or use JobMech's Smart Built-in Assisted Engine immediately.
+              </p>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-sm" id="installOllamaBtn" onclick="installOllamaRuntime()">⬇️ Install Ollama Runtime</button>
+              <button class="btn btn-sm" onclick="checkOllamaStatus()">🔄 Refresh Status</button>
+            </div>
+          </div>
+
+          <div class="local-model-grid">
+            <div class="model-card">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#fff; font-size:13.5px;">Qwen 2.5 7B Instruct</strong>
+                  <span class="badge badge-emerald">★ Top Pick (8GB RAM)</span>
+                </div>
+                <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                  <code>qwen2.5:7b</code> (~4.7 GB) — Exceptional structured CV generation, gap analysis, and natural English writing.
+                </p>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm btn-primary" style="flex:1;" onclick="selectAndUseLocalModel('qwen2.5:7b')">Use Model</button>
+                <button class="btn btn-sm" onclick="pullOllamaModel('qwen2.5:7b')">⬇️ Download</button>
+              </div>
+            </div>
+
+            <div class="model-card">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#fff; font-size:13.5px;">Llama 3.1 8B Instruct</strong>
+                  <span class="badge badge-blue">Great Prose (8GB RAM)</span>
+                </div>
+                <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                  <code>llama3.1:8b</code> (~4.9 GB) — Meta's versatile 8B model with smooth, human-sounding Cover Letter flow.
+                </p>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm btn-primary" style="flex:1;" onclick="selectAndUseLocalModel('llama3.1:8b')">Use Model</button>
+                <button class="btn btn-sm" onclick="pullOllamaModel('llama3.1:8b')">⬇️ Download</button>
+              </div>
+            </div>
+
+            <div class="model-card">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#fff; font-size:13.5px;">Gemma 3 12B / Mistral Nemo</strong>
+                  <span class="badge badge-purple">High Nuance (16GB RAM)</span>
+                </div>
+                <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                  <code>gemma3:12b</code> (~8.1 GB) — Superior vocabulary richness and zero robotic tone for executive roles.
+                </p>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm btn-primary" style="flex:1;" onclick="selectAndUseLocalModel('gemma3:12b')">Use Model</button>
+                <button class="btn btn-sm" onclick="pullOllamaModel('gemma3:12b')">⬇️ Download</button>
+              </div>
+            </div>
+
+            <div class="model-card">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:#fff; font-size:13.5px;">Llama 3.2 3B Instruct</strong>
+                  <span class="badge badge-amber">Fast / CPU Friendly (4GB)</span>
+                </div>
+                <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">
+                  <code>llama3.2:3b</code> (~2.0 GB) — Lightweight and fast even on laptops without a dedicated graphics card.
+                </p>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm btn-primary" style="flex:1;" onclick="selectAndUseLocalModel('llama3.2:3b')">Use Model</button>
+                <button class="btn btn-sm" onclick="pullOllamaModel('llama3.2:3b')">⬇️ Download</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end;">
+          <button class="btn btn-primary btn-lg" onclick="switchSetupStep(2)">Next: Personal Profile Questions →</button>
+        </div>
+      </div>
+
+      <!-- SETUP STEP 2: PERSONAL PROFILE & PHOTO -->
+      <div id="setupStep2" class="hidden">
+        <div class="grid-2" style="gap:14px;">
+          <div class="form-group">
+            <label class="form-label">Your Full Name *</label>
+            <input type="text" id="profFullName" class="form-input" placeholder="e.g., Pedro Henrique Almeida" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Current / Target Professional Headline</label>
+            <input type="text" id="profTitle" class="form-input" placeholder="e.g., Senior Mechanical Engineer" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input type="email" id="profEmail" class="form-input" placeholder="e.g., pedro@email.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone Number (with Country Code)</label>
+            <input type="text" id="profPhone" class="form-input" placeholder="e.g., +49 151 23456789 or +55 11 99999-9999" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Current Location (City, Country)</label>
+            <input type="text" id="profLocation" class="form-input" placeholder="e.g., Munich, Germany (or São Paulo, Brazil)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nationality / Work Visa Status (Used in EU/DE CVs)</label>
+            <input type="text" id="profNationality" class="form-input" placeholder="e.g., Brazilian / EU Blue Card Eligible" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">LinkedIn Profile URL</label>
+            <input type="text" id="profLinkedin" class="form-input" placeholder="e.g., linkedin.com/in/pedro-almeida" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Portfolio / GitHub / Website (Optional)</label>
+            <input type="text" id="profPortfolio" class="form-input" placeholder="e.g., github.com/pedro or portfolio.com" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Languages &amp; Proficiency Levels (CEFR recommended for Europe)</label>
+          <input type="text" id="profLanguages" class="form-input" placeholder="e.g., Portuguese (Native), English (C1 Fluent), German (B1 Intermediate)" />
+        </div>
+
+        <div class="photo-box" style="margin-bottom:18px;">
+          <img id="setupPhotoPreview" class="photo-thumb" src="" alt="Portrait" />
+          <div>
+            <strong style="font-size:13.5px; color:#fff;">Personal Portrait Photo (Saved in Memory for Photo-Culture Countries)</strong>
+            <p style="font-size:12px; color:var(--text-muted); margin:4px 0 8px;">
+              Automatically added for Germany, Austria, Switzerland, France, Brazil, Portugal, and Japan; automatically hidden for US, UK, Canada, and Australia.
+            </p>
+            <label class="btn btn-sm btn-primary" style="cursor:pointer;">
+              <span>📷 Upload Portrait Photo</span>
+              <input type="file" accept="image/*" style="display:none;" onchange="handlePhotoUpload(event)" />
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between;">
+          <button class="btn" onclick="switchSetupStep(1)">← Back to AI Setup</button>
+          <button class="btn btn-emerald btn-lg" onclick="saveProfileAndFinishSetup()">✓ Save Setup &amp; Open JobMech Studio</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div id="loadingTitle" style="font-size:17px; font-weight:700; color:#fff;">Analyzing Job Posting...</div>
+    <div id="loadingSubtitle" style="font-size:13px; color:var(--text-secondary); max-width:480px; text-align:center;">
+      Comparing job requirements against your career story and memory.md...
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

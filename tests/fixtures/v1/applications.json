@@ -1,0 +1,79 @@
+[
+  {
+    "id": "app_fixture_one",
+    "name": "Werkstudent Controlling (m/w/d) @ Nordwind Logistik GmbH",
+    "role": "Werkstudent Controlling (m/w/d)",
+    "company": "Nordwind Logistik GmbH",
+    "countryCode": "DE",
+    "docLanguage": "German",
+    "palette": "teal",
+    "includePhoto": true,
+    "createdAt": "2026-11-10",
+    "savedToMemory": true,
+    "baseStorySnapshot": "Werkstudentin Finanzen bei Hansa Freight Services GmbH seit 10/2024.",
+    "jobPosting": "Werkstudent Controlling (m/w/d) bei Nordwind Logistik GmbH in Hamburg. Excel, Power BI, SAP FI/CO von Vorteil.",
+    "gapQuestions": [
+      "How many cost centres did your monthly reports cover?",
+      "Have you worked with SAP FI or CO?",
+      "Are you based in Hamburg and available 20 hours per week?"
+    ],
+    "gapAnswers": "Q1: How many cost centres did your monthly reports cover?\nA1: The reports covered 14 cost centres.\n\nQ2: Have you worked with SAP FI or CO?\nA2: [Skipped / Not Applicable]\n\nQ3: Are you based in Hamburg and available 20 hours per week?\nA3: I live in Hamburg and can work 20 hours per week.\n\nAdditional Notes: none",
+    "gapMemoryFacts": "",
+    "cv": {
+      "headline": "Studentin der Wirtschaftsinformatik",
+      "summary": "Zwei Jahre Praxis im Reporting eines Logistikunternehmens.",
+      "experience": [
+        {
+          "role": "Werkstudentin Finanzen",
+          "company": "Hansa Freight Services GmbH",
+          "location": "Hamburg",
+          "period": "10/2024 - heute",
+          "bullets": ["Monatliche Kostenberichte in Excel für 14 Kostenstellen erstellt", "", "Rund 300 Eingangsrechnungen pro Monat abgeglichen"]
+        }
+      ],
+      "education": [
+        {
+          "degree": "B.Sc. Wirtschaftsinformatik",
+          "institution": "Universität Hamburg",
+          "period": "10/2024 - 09/2027",
+          "details": "Schwerpunkte: Controlling, Datenbanken"
+        }
+      ],
+      "skills": ["Excel", "Power BI", "SQL"],
+      "additionalInfo": "Verfügbar ab 01.01.2027"
+    },
+    "coverLetter": {
+      "recipientBlock": "Nordwind Logistik GmbH\nFrau Katrin Albers\n20457 Hamburg",
+      "subjectLine": "Bewerbung als Werkstudentin Controlling",
+      "salutation": "Sehr geehrte Frau Albers,",
+      "paragraphs": ["seit zwei Jahren erstelle ich die monatlichen Kostenberichte bei Hansa Freight Services.", "", "Über ein Gespräch freue ich mich."],
+      "signOff": "Mit freundlichen Grüßen,"
+    }
+  },
+  {
+    "id": "app_fixture_two",
+    "name": "Junior Analyst @ Example Corp",
+    "countryCode": "GB",
+    "docLanguage": "English",
+    "palette": "burgundy",
+    "includePhoto": false,
+    "createdAt": "not-a-date",
+    "jobPosting": "Junior Analyst at Example Corp, London.",
+    "gapQuestions": ["Do you have experience with SQL?"],
+    "gapAnswers": "Q1: Do you have experience with SQL?\nA1: Yes, basic SELECT and JOIN queries in a university course.",
+    "cv": {
+      "headline": "Business informatics student",
+      "summary": "Two years of reporting practice.",
+      "experience": [{ "role": "Working Student Finance", "company": "Hansa Freight Services GmbH", "location": "Hamburg", "period": "Oct 2024 - Present", "bullets": ["Built monthly cost reports in Excel"] }],
+      "education": [],
+      "skills": []
+    },
+    "coverLetter": {
+      "recipientBlock": "",
+      "subjectLine": "Application for Junior Analyst",
+      "salutation": "Dear Hiring Team,",
+      "paragraphs": ["I have built monthly cost reports for two years."],
+      "signOff": "Kind regards,"
+    }
+  }
+]

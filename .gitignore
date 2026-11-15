@@ -1,0 +1,15 @@
+# Personal data. JobMech keeps your profile, memory, applications and encrypted API keys here.
+# It must never be committed.
+/data/
+/exports/
+/_legacy_v1/data-backup/
+
+# Build output (the program is built from src\ and published as a release)
+/JobMech.exe
+/_legacy_v1/JobMech.exe
+/dist/
+
+# Local tooling
+.claude/settings.local.json
+*.log
+Thumbs.db
