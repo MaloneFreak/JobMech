@@ -36,9 +36,20 @@ finally { Pop-Location }
 Write-Host "Built JobMech $version in $stage"
 
 if (-not $NoZip) {
+  Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   $zip = Join-Path $OutDir "JobMech-$version-win-x64.zip"
   if (Test-Path $zip) { Remove-Item $zip -Force }
-  [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $true)
+  # Entries are added one by one so that their names use "/" as the ZIP format requires
+  # (Windows PowerShell's CreateFromDirectory writes "\").
+  $base = (Get-Item $OutDir).FullName.TrimEnd('\') + '\'
+  $archive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
+  try {
+    foreach ($f in Get-ChildItem $stage -Recurse -File) {
+      $name = $f.FullName.Substring($base.Length).Replace('\', '/')
+      [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $f.FullName, $name, [System.IO.Compression.CompressionLevel]::Optimal)
+    }
+  }
+  finally { $archive.Dispose() }
   Write-Host "Packaged $zip ($([Math]::Round((Get-Item $zip).Length / 1MB, 2)) MB)"
 }
