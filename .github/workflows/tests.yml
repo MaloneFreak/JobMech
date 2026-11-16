@@ -19,8 +19,8 @@ jobs:
         run: |
           $keys = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
                   'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-          $found = $keys | Where-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv }
-          if ($found) { Write-Host "WebView2 Runtime $((Get-ItemProperty $found[0]).pv) is present"; exit 0 }
+          $found = @($keys | Where-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv })
+          if ($found.Count) { Write-Host "WebView2 Runtime $((Get-ItemProperty $found[0]).pv) is present"; exit 0 }
           Write-Host 'Installing the WebView2 Runtime'
           Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP\webview2-setup.exe"
           Start-Process "$env:RUNNER_TEMP\webview2-setup.exe" -ArgumentList '/silent', '/install' -Wait
