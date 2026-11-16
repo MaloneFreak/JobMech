@@ -31,7 +31,7 @@ export async function bringOver({ replacing = true } = {}) {
     h('div.notice', ic('info', 16), h('div',
       h('div', h('b', 'A backup file: '), 'the .zip made with "Back up now".'),
       h('div.mt-4', h('b', 'A data folder: '), 'the "data" folder of another JobMech copy. Folders written by JobMech 1 are converted.'),
-      h('div.mt-4', 'API keys are never part of either. Enter them again under Settings if needed.'))));
+      h('div.mt-4', 'API keys are never in a backup file. From a data folder on this PC they come along, unless a key for the same engine is already saved here.'))));
   const choice = await modal({
     title: replacing ? 'Restore your data' : 'Bring over your JobMech data',
     body,

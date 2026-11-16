@@ -89,12 +89,14 @@ T.run('03-studio', async () => {
   await sleep(60);
   eq('font and spacing are stored on the application', [st.app.design.font, st.app.design.density], ['georgia', 'compact']);
 
-  const ratio = () => { const w = $('.sheet-wrap'); return Math.round(parseFloat(w.style.height) / parseFloat(w.style.width) * 100) / 100; };
-  eq('German documents are A4', ratio(), 1.41);
+  // height / width of the previewed sheet; whole pixels, so allow for rounding on small screens
+  const ratio = () => { const w = $('.sheet-wrap'); return parseFloat(w.style.height) / parseFloat(w.style.width); };
+  const near = (a, b) => Math.abs(a - b) < 0.012;
+  ok('German documents are A4', near(ratio(), 297 / 210), ratio());
   const [countrySel, langSel] = $$('select', insp());
   type(countrySel, 'US');
   await sleep(80);
-  eq('American documents are US Letter', ratio(), 1.29);
+  ok('American documents are US Letter', near(ratio(), 279.4 / 215.9), ratio());
   ok('the signature line is not offered for a US resume', !byText('label.switch', 'Place, date and name', insp()));
   type($$('select', insp())[1], 'en');
   await sleep(80);

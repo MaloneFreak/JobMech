@@ -131,6 +131,20 @@ try {
     $app = $null
     $problems = Log-Problems $data
     Check 'nothing was written to the error log during migration' ($problems.Count -eq 0) ($problems | Select-Object -First 3 | Out-String)
+
+    # ---------------------------------------------------------------- upgrading from a copy that kept its data next to the program
+    # A newer copy starts empty and is pointed at the older copy's folder: data and saved API keys come along.
+    Write-Host 'Bringing data over from an older copy' -ForegroundColor Cyan
+    $new = "$work\data-new"
+    New-Item -ItemType Directory -Force "$new\dev-out\old-copy\data" | Out-Null
+    Get-ChildItem $data -Force | Where-Object { $_.Name -ne '.webview' } | Copy-Item -Destination "$new\dev-out\old-copy\data" -Recurse -Force
+    $app = Start-App $new
+    $moved = Cdp "(async()=>{const h=await import('/js/host.js');const s=await import('/js/store.js');const before=(await h.secrets.info('openrouter')).exists;const r=await h.data.importFrom(s.state.info.dataDir+'\\dev-out\\old-copy');await s.init();const k=await h.secrets.info('openrouter');return [before,r.keys,k.exists,k.host,s.state.apps.length,s.state.settings.onboarded,s.state.profile.fullName].join('|')})()"
+    Check 'a new copy takes over the data and the saved keys of an older copy on this PC' ($moved -eq 'false|1|true|openrouter.ai|2|true|Lena Brandt') $moved
+    Check 'the window closes cleanly after bringing data over' (Stop-App $app)
+    $app = $null
+    $problems = Log-Problems $new
+    Check 'nothing was written to the error log while bringing data over' ($problems.Count -eq 0) ($problems | Select-Object -First 3 | Out-String)
   }
 }
 finally {

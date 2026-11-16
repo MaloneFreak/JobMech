@@ -69,7 +69,8 @@ Model lists are fetched live from each provider, so nothing goes stale.
   to `data\backups`.
 - API keys are the exception: they are encrypted for your Windows account (DPAPI) in `secrets.dat`.
   The interface never sees a key after you save it; the native host injects it into requests, and only
-  for the provider host it was saved for. Keys are never part of a backup.
+  for the provider host it was saved for. Keys are never part of a backup file; when you bring data
+  over from another copy's folder on the same PC and Windows account, its keys come along.
 - The app's own pages are served from the local `app` folder. Network traffic is limited to the
   requests to the AI engine you chose and, once a day, a question to GitHub for the number of the latest
   release (it can be switched off in Settings; nothing about you is sent, and nothing is downloaded or

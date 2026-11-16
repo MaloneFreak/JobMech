@@ -417,6 +417,7 @@ namespace JobMech
             string data = Program.DataDir;
             string stage = Path.Combine(Path.GetTempPath(), "jobmech-import-" + Guid.NewGuid().ToString("N").Substring(0, 8));
             Directory.CreateDirectory(stage);
+            string otherKeys = null;
             try
             {
                 int staged = 0;
@@ -427,6 +428,7 @@ namespace JobMech
                     if (!HasData(root)) throw new UserException("That folder does not contain JobMech data. Choose the \"data\" folder of your other JobMech copy.");
                     if (string.Equals(Path.GetFullPath(root).TrimEnd('\\'), data, StringComparison.OrdinalIgnoreCase))
                         throw new UserException("That is the folder JobMech is already using.");
+                    if (File.Exists(Path.Combine(root, "secrets.dat"))) otherKeys = Path.Combine(root, "secrets.dat");
                     List<string> files = new List<string>();
                     CollectFiles(root, root, files);
                     foreach (string rel in files)
@@ -506,8 +508,11 @@ namespace JobMech
                     Directory.CreateDirectory(Path.GetDirectoryName(dest));
                     File.Copy(Path.Combine(stage, rel), dest, true);
                 }
-                Log.Write("INFO", "Data replaced from " + (Directory.Exists(src) ? "a folder" : "a backup file") + ": " + incoming.Count + " files.");
-                return Obj("files", incoming.Count, "safety", safety);
+                // Another copy on this PC: its saved API keys come along, as far as none is saved here
+                // under the same name. Keys of another Windows account cannot be read and are left out.
+                int keys = otherKeys != null ? secrets.AdoptFrom(otherKeys) : 0;
+                Log.Write("INFO", "Data replaced from " + (Directory.Exists(src) ? "a folder" : "a backup file") + ": " + incoming.Count + " files, " + keys + " API keys.");
+                return Obj("files", incoming.Count, "safety", safety, "keys", keys);
             }
             catch (UserException) { throw; }
             catch (IOException ex) { throw new UserException("The data could not be copied: " + ex.Message); }
@@ -903,6 +908,35 @@ namespace JobMech
             {
                 Dictionary<string, object> d = Load();
                 if (d.Remove(name)) Save(d);
+            }
+        }
+
+        /// <summary>
+        /// Takes over the keys of another JobMech key file, without replacing any that is saved here
+        /// already. Only works for a file encrypted for this Windows account; otherwise nothing happens.
+        /// </summary>
+        public int AdoptFrom(string otherFile)
+        {
+            lock (gate)
+            {
+                Dictionary<string, object> other;
+                try
+                {
+                    byte[] plain = ProtectedData.Unprotect(File.ReadAllBytes(otherFile), Entropy, DataProtectionScope.CurrentUser);
+                    other = Services.Json.Deserialize<Dictionary<string, object>>(Encoding.UTF8.GetString(plain));
+                }
+                catch { return 0; }
+                if (other == null) return 0;
+                Dictionary<string, object> d = Load();
+                int n = 0;
+                foreach (KeyValuePair<string, object> kv in other)
+                {
+                    if (d.ContainsKey(kv.Key) || !(kv.Value is Dictionary<string, object>)) continue;
+                    d[kv.Key] = kv.Value;
+                    n++;
+                }
+                if (n > 0) Save(d);
+                return n;
             }
         }
 
