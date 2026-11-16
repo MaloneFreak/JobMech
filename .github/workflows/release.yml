@@ -1,0 +1,56 @@
+name: Release
+
+# Pushing a tag such as v2.1.1 (release.ps1 does that) builds the program, runs every test suite and,
+# only if they pass, publishes a GitHub release with the zip people download.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check that the tag matches the version in the source
+        shell: powershell
+        run: |
+          $version = [regex]::Match((Get-Content src\Program.cs -Raw), 'AppVersion\s*=\s*"([^"]+)"').Groups[1].Value
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match AppVersion $version in src\Program.cs. Use release.ps1 to make a release."
+          }
+          Write-Host "Releasing JobMech $version"
+
+      - name: Make sure the WebView2 Runtime is installed
+        shell: powershell
+        run: |
+          $keys = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+                  'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $found = $keys | Where-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv }
+          if ($found) { Write-Host "WebView2 Runtime $((Get-ItemProperty $found[0]).pv) is present"; exit 0 }
+          Write-Host 'Installing the WebView2 Runtime'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP\webview2-setup.exe"
+          Start-Process "$env:RUNNER_TEMP\webview2-setup.exe" -ArgumentList '/silent', '/install' -Wait
+
+      - name: Run the test suites
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\run.ps1
+
+      - name: Build the release zip
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File package.ps1
+
+      - name: Publish the release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = Get-ChildItem dist\JobMech-*-win-x64.zip | Select-Object -First 1
+          if (-not $zip) { throw 'The release zip was not built.' }
+          $title = 'JobMech ' + $env:GITHUB_REF_NAME.TrimStart('v')
+          gh release create $env:GITHUB_REF_NAME $zip.FullName --title $title --notes-file .github\release-notes.md --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'The release could not be published.' }
