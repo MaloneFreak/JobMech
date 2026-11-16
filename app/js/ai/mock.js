@@ -77,6 +77,25 @@ const LETTER = {
   enclosures: 'Anlagen: Lebenslauf',
 };
 
+// One note carries a dash on purpose, and one category is unknown: both must be cleaned up.
+const INTERVIEW = {
+  pitch: [
+    'Wirtschaftsinformatik im 5. Semester an der Universität Hamburg, Schwerpunkt Controlling',
+    'Seit zwei Jahren Werkstudentin bei Hansa Freight Services – monatliche Kostenberichte für 14 Kostenstellen',
+    'Nordwind Logistik: gleiche Branche, Reporting in Power BI, das ich aus dem Studienprojekt kenne',
+  ],
+  questions: [
+    { category: 'motivation', question: 'Warum möchten Sie zu Nordwind Logistik wechseln?', why: 'Ob die Bewerbung gezielt ist', points: ['Logistik kenne ich aus zwei Jahren bei Hansa Freight Services', 'Die Stelle verbindet Excel-Reporting mit Power BI, beides aus der Ausschreibung'] },
+    { category: 'role', question: 'Wie gehen Sie bei einer Abweichungsanalyse vor?', why: 'Fachliches Verständnis der Kernaufgabe', points: ['Plan und Ist je Kostenstelle gegenübergestellt und der Leiterin Controlling vorgelegt', 'Grundlage waren die monatlichen Kostenberichte in Excel mit Pivot-Tabellen'] },
+    { category: 'experience', question: 'Sie haben den Wochenbericht überarbeitet. Was genau haben Sie geändert?', why: 'Eigenanteil und Ergebnis prüfen', points: ['Vorlage neu aufgebaut, Erstellung von etwa 3 Stunden auf 1 Stunde gesenkt', 'Welche Schritte automatisiert wurden, vorher noch einmal durchgehen: das Material nennt sie nicht'] },
+    { category: 'gap', question: 'Welche Erfahrung haben Sie mit SAP FI/CO?', why: 'Im Profil als Vorteil genannt', points: ['Ehrlich sagen: bisher nicht damit gearbeitet', 'DATEV als Anwenderin, zuletzt in Power Query eingearbeitet'] },
+    { category: 'practical', question: 'Ab wann und in welchem Umfang können Sie anfangen?', why: 'Formale Bedingung der Stelle', points: ['Ab 1. Januar 2027, 20 Stunden pro Woche', 'Wohnhaft in Hamburg'] },
+    { category: 'teamwork', question: 'Erzählen Sie von einer Situation, in der Sie unter Zeitdruck genau arbeiten mussten.', why: 'Sorgfalt im Monatsabschluss', points: ['Rund 300 Eingangsrechnungen pro Monat mit den Lieferscheinen abgeglichen', 'Ein konkretes Beispiel für einen gefundenen Fehler vorbereiten: das Material nennt keines'] },
+  ],
+  ask: ['Welche Kennzahlen laufen heute schon in Power BI, welche noch in Excel?', 'Wie ist das Team Controlling & Reporting aufgebaut?', 'Wie läuft die Einarbeitung in SAP FI/CO ab?'],
+  watch: ['Auf die Frage nach SAP vorbereitet sein und nichts beschönigen', 'Pünktlich sein und die Unterlagen ausgedruckt mitbringen'],
+};
+
 const between = (text, a, b) => {
   const i = text.indexOf(a);
   if (i < 0) return '';
@@ -90,6 +109,7 @@ export function mockReply(o) {
   if (task === 'analysis') return JSON.stringify(ANALYSIS);
   if (task === 'cv') return JSON.stringify(CV);
   if (task === 'letter') return JSON.stringify(LETTER);
+  if (task === 'interview') return JSON.stringify(INTERVIEW);
   if (task === 'edit') {
     let fields = {};
     try { fields = JSON.parse(between(o.user, 'to the cover letter.\n', '\n\nGo through every field')); } catch { /* ignore */ }

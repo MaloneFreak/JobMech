@@ -14,6 +14,7 @@ if exist "src\JobMech.ico" set ICON=/win32icon:src\JobMech.ico /resource:src\Job
   /out:JobMech.exe /win32manifest:src\app.manifest %ICON% ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
   /r:System.Web.dll /r:System.Web.Extensions.dll /r:System.Security.dll ^
+  /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
   /r:Microsoft.Web.WebView2.Core.dll /r:Microsoft.Web.WebView2.WinForms.dll ^
   src\Program.cs src\MainForm.cs src\Services.cs
 if errorlevel 1 (

@@ -6,6 +6,44 @@ import { ping } from '../ai/client.js';
 import { secrets, http, app as hostApp, fs, call } from '../host.js';
 import { PALETTES, FONTS, DENSITY } from '../palettes.js';
 import { applyTheme } from '../main.js';
+import { backupNow, bringOver, dataPlaceText } from './dataio.js';
+import { checkForUpdate, available } from '../update.js';
+
+/** Runs an action from a button and reports a failure instead of leaving the click without effect. */
+async function guard(btn, fn) {
+  btn.disabled = true;
+  try { await fn(); } catch (e) { toast(e.message || String(e), { type: 'bad' }); }
+  btn.disabled = false;
+}
+
+// ---------------------------------------------------------------------------------- new versions
+
+function updatePanel(shell) {
+  const s = state.settings;
+  const line = h('div.small');
+  const dl = h('button.btn.btn-sm.btn-primary', ic('download', 14), 'Open the download page');
+  const check = h('button.btn.btn-sm', ic('refresh', 14), 'Check now');
+  const paint = (note) => {
+    const up = available();
+    line.textContent = note || (up ? `Version ${up.version} is available.` : s.updates.lastCheck ? 'This is the latest version.' : 'Not checked yet.');
+    line.style.color = up && !note ? 'var(--accent-ink)' : '';
+    dl.style.display = up ? '' : 'none';
+    dl.onclick = () => hostApp.openExternal(up.url);
+  };
+  check.addEventListener('click', async () => {
+    busy(check, true, ' Checking');
+    let note = '';
+    try { await checkForUpdate({ force: true }); } catch (e) { note = e.message || 'The check did not work.'; }
+    busy(check, false);
+    paint(note);
+    shell.refreshSide();
+  });
+  paint();
+  return h('div.col.gap-8',
+    h('div.row', h('div.grow', line), dl, check),
+    h('div', switchEl(s.updates.check !== false, async (v) => { s.updates.check = v; await saveSettings(); }, 'Look for a new version once a day'),
+      h('div.tiny.muted.mt-4', 'Asks GitHub for the number of the latest release. Nothing about you or your documents is sent.')));
+}
 
 // ---------------------------------------------------------------------------------- AI engine panel
 
@@ -304,13 +342,21 @@ export async function mount$(root, params, shell) {
       const dir = state.info.dataDir;
       const open = (p) => fs.open(p).catch((e) => toast(e.message, { type: 'bad' }));
       mount(body,
-        h('div.section', h('div.h2', 'Your data'), h('div.desc', 'Everything stays in one folder on this computer: your profile, memory, applications and settings. Copy the folder to back it up or move it to another PC. API keys are the exception: they are tied to your Windows account and must be entered again on another machine.'),
+        h('div.section', h('div.h2', 'Your data'), h('div.desc', 'Everything stays in one folder on this computer: your profile, memory, applications and settings. API keys are the exception: they are tied to your Windows account and must be entered again on another machine.'),
           h('div.card.card-pad.col.gap-12',
             h('div.row', h('span.mono.small.selectable.grow.ellipsis', dir), h('button.btn.btn-sm', { onclick: () => open(dir) }, ic('folder', 14), 'Open folder')),
+            h('div.small.muted', dataPlaceText()),
+            h('hr.divider'),
+            h('div.row', h('div.grow', h('div.h3', 'Back up'), h('div.small.muted', 'One file with everything except API keys. Keep it on another drive or in the cloud.')),
+              h('button.btn.btn-sm.btn-primary', { onclick: (e) => guard(e.currentTarget, backupNow) }, ic('download', 14), 'Back up now')),
+            h('div.row', h('div.grow', h('div.h3', 'Restore'), h('div.small.muted', 'From a backup file, or from the data folder of another JobMech copy.')),
+              h('button.btn.btn-sm', { onclick: (e) => guard(e.currentTarget, () => bringOver({ replacing: true })) }, ic('upload', 14), 'Restore')),
+            h('hr.divider'),
             h('div.row', h('span.small.grow', 'Trouble? The log file helps to find out why.'), h('button.btn.btn-sm.btn-ghost', { onclick: () => open(dir + '\\logs\\jobmech.log') }, 'Open log')))),
         h('div.section', h('div.h2', 'About'),
           h('div.card.card-pad.col.gap-12',
             h('div.row', h('img', { src: 'assets/icon-256.png', width: 40, height: 40, alt: '' }), h('div', h('div.h3', 'JobMech ' + state.info.version), h('div.small.muted', 'Tailored CVs and cover letters, formatted for the country you apply to.'))),
+            updatePanel(shell),
             h('div.small.muted', 'Reads PDF attachments with pdf.js (Mozilla, Apache 2.0). Window engine: Microsoft Edge WebView2.'))));
     }
   }

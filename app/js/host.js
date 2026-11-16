@@ -85,7 +85,14 @@ export async function http({ url, method = 'GET', headers = {}, body = null, sec
 
 export const dialog = {
   save(opts) { return call('dialog.save', opts); },
+  open(opts) { return call('dialog.open', opts); },
   folder(opts) { return call('dialog.folder', opts); },
+};
+
+// ---- the data folder as a whole: one backup file out, a backup file or another data folder in
+export const data = {
+  exportBackup(path) { return call('data.export', { path }); },
+  importFrom(path) { return call('data.import', { path }); },
 };
 
 export const fs = {

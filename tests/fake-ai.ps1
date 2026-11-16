@@ -63,6 +63,18 @@ while ($true) {
 
     if ($path -eq '/shutdown') { Send-Json $stream 200 '{"bye":true}'; break }
 
+    # ---- GitHub "latest release", for the new-version check
+    if ($path -match '^/repos/(\w+)/releases/latest$') {
+      $kind = $Matches[1]
+      $page = 'https://github.com/MaloneFreak/JobMech/releases/tag/v9.9.9'
+      if ($kind -eq 'newer') { Send-Json $stream 200 ('{"tag_name":"v9.9.9","html_url":"' + $page + '","draft":false,"prerelease":false}'); continue }
+      if ($kind -eq 'older') { Send-Json $stream 200 '{"tag_name":"v1.0.0","html_url":"https://github.com/MaloneFreak/JobMech/releases/tag/v1.0.0","draft":false,"prerelease":false}'; continue }
+      if ($kind -eq 'evil') { Send-Json $stream 200 '{"tag_name":"v9.9.9","html_url":"https://evil.example/download","draft":false,"prerelease":false}'; continue }
+      if ($kind -eq 'pre') { Send-Json $stream 200 ('{"tag_name":"v99.0.0","html_url":"' + $page + '","draft":false,"prerelease":true}'); continue }
+      Send-Json $stream 404 '{"message":"Not Found"}'
+      continue
+    }
+
     # ---- Ollama
     if ($path -eq '/api/version') { Send-Json $stream 200 '{"version":"0.0.0-fake"}'; continue }
     if ($path -eq '/api/tags') { Send-Json $stream 200 '{"models":[{"name":"fake-local:latest","size":1234567890,"details":{"parameter_size":"1B"}}]}'; continue }

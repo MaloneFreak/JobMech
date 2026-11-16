@@ -4,6 +4,7 @@ import { h, ic, mount, clear, toast } from '../ui.js';
 import { aiPanel } from './settings.js';
 import { profileForm, photoPicker, storyEditor } from './parts.js';
 import { readiness } from '../ai/client.js';
+import { bringOver } from './dataio.js';
 
 export function run(shell) {
   return new Promise((resolve) => {
@@ -73,6 +74,7 @@ export function run(shell) {
       mount(foot,
         step > 0 ? h('button.btn.btn-ghost', { onclick: () => go(step - 1) }, ic('arrowLeft', 16), 'Back') : null,
         dots, h('div.grow'),
+        step === 0 ? h('button.btn.btn-ghost', { onclick: () => bringOver({ replacing: false }), title: 'Bring over your data from a backup or from another JobMech copy' }, ic('upload', 16), 'I already have JobMech data') : null,
         h('button.btn.btn-ghost', { onclick: finish }, 'Skip for now'), next);
     }
 

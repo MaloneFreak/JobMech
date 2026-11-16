@@ -8,7 +8,7 @@ import { LANGS, docNames, langName } from '../doclang.js';
 import { PALETTES, FONTS, DENSITY } from '../palettes.js';
 import { exportDocs } from '../docs/export.js';
 import { runGeneration, commitMemory } from './generate.js';
-import { humanize, refine } from '../ai/pipeline.js';
+import { humanize, refine, prepareInterview, interviewText, INTERVIEW_CATEGORIES } from '../ai/pipeline.js';
 import { readiness } from '../ai/client.js';
 import { deepGet, deepSet, debounce, shortDate, isoDate, clone } from '../util.js';
 import { fs } from '../host.js';
@@ -174,8 +174,7 @@ export async function mount$(root, params, shell) {
     const st = statusOf(app.status);
     const statusBtn = h('button.status-pill', { title: 'Change status' }, h('span.dot' + (st.dot ? '.' + st.dot : '')), st.label, ic('chevronDown', 12));
     statusBtn.addEventListener('click', () => menu(statusBtn, STATUSES.map((s) => ({
-      label: s.label, icon: s.id === app.status ? 'check' : 'dots',
-      onclick: () => { app.status = s.id; if (s.id === 'applied' && !app.appliedAt) app.appliedAt = isoDate(); saveApp(app); renderBar(); renderInspector(); },
+      label: s.label, icon: s.id === app.status ? 'check' : 'dots', onclick: () => setStatus(s.id),
     }))));
 
     const dl = h('button.btn.btn-accent', ic('download', 16), 'Download', ic('chevronDown', 14));
@@ -214,6 +213,17 @@ export async function mount$(root, params, shell) {
       dl, more);
   }
 
+  function setStatus(id) {
+    app.status = id;
+    if (id === 'applied' && !app.appliedAt) app.appliedAt = isoDate();
+    saveApp(app);
+    renderBar();
+    renderInspector();
+    if (id === 'interview' && !app.interview) {
+      toast('An interview coming up? JobMech can prepare you for it.', { type: 'info', ms: 9000, action: { label: 'Prepare', fn: () => { ui.tab = 'interview'; renderInspector(); } } });
+    }
+  }
+
   async function doExport(kind, format) {
     if (editing) editing.blur();
     try {
@@ -249,12 +259,70 @@ export async function mount$(root, params, shell) {
     const q = ui.quality || { checks: [], flags: [], coverage: [], stats: {} };
     const todo = q.flags.length;
     const tab = (id, label, n) => h('button' + (ui.tab === id ? '.on' : ''), { onclick: () => { ui.tab = id; renderInspector(); } }, label, n ? h('span.n.warn', String(n)) : null);
-    mount(tabsEl, tab('review', 'Review', todo), tab('refine', 'Refine'), tab('design', 'Design'), tab('job', 'Job'));
+    mount(tabsEl, tab('review', 'Review', todo), tab('refine', 'Refine'), tab('design', 'Design'), tab('job', 'Job'), tab('interview', 'Interview'));
     clear(body);
     if (ui.tab === 'review') reviewTab(q);
     else if (ui.tab === 'refine') refineTab();
     else if (ui.tab === 'design') designTab();
+    else if (ui.tab === 'interview') interviewTab();
     else jobTab();
+  }
+
+  // Once there is an interview: the questions to expect, each with the candidate's own material to answer it.
+  function interviewTab() {
+    const prep = app.interview;
+    const chosen = prep ? prep.language : app.language;
+    const langSel = h('select.select.select-sm', [...LANGS.map((l) => h('option', { value: l.code, selected: l.code === chosen }, l.name)),
+      app.language === 'other' ? h('option', { value: 'other', selected: chosen === 'other' }, app.languageName || 'Other') : null]);
+    const status = h('div.tiny.muted', { style: { minHeight: '16px' } });
+    const go = h('button.btn' + (prep ? '' : '.btn-primary'), ic(prep ? 'refresh' : 'sparkles', 15), prep ? 'Prepare again' : 'Prepare me for the interview');
+    go.addEventListener('click', async () => {
+      const ready = await readiness();
+      if (!ready.ok) { toast(ready.reason, { type: 'bad' }); return; }
+      busy(go, true, ' Preparing');
+      try {
+        await prepareInterview(app, langSel.value, {
+          onStatus: (m) => { status.textContent = m === 'thinking' ? 'The model is thinking' : m; },
+          onDelta: (t) => { status.textContent = 'Writing · ' + Math.round(t.length / 6) + ' words'; },
+        });
+        await saveApp(app);
+        toast('Your interview preparation is ready.');
+        renderInspector();
+      } catch (e) {
+        toast(e.message || String(e), { type: 'bad' });
+        busy(go, false);
+        status.textContent = '';
+      }
+    });
+
+    if (!prep) {
+      body.appendChild(h('div.col.gap-12',
+        h('div.h3', 'Invited to an interview?'),
+        h('div.small.soft', { style: { lineHeight: '1.5' } }, 'JobMech predicts the questions this employer is likely to ask and shows which of your real experiences answer each one. Where your material has no answer yet, it says so, so you can think it through beforehand. Nothing is invented.'),
+        field('Language of the preparation', langSel, 'Usually the language the interview will be held in.'),
+        h('div.row', go, status)));
+      return;
+    }
+
+    const notes = (items) => h('ul.prep-list', items.map((t) => h('li', t)));
+    const copy = h('button.btn.btn-sm', ic('fileText', 14), 'Copy all');
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(interviewText(app)); toast('Copied. Paste it into your notes or a document.'); }
+      catch { toast('Copying was not possible. Select the text here instead.', { type: 'bad' }); }
+    });
+    body.appendChild(h('div.row.between', h('span.tiny.muted', `Prepared ${shortDate(prep.generatedAt)} · ${prep.language === 'other' ? (app.languageName || 'Other') : langName(prep.language)}`), copy));
+    if (prep.pitch.length) body.appendChild(h('div', h('div.eyebrow.mb-8', 'Tell me about yourself'), h('div.prep-q', notes(prep.pitch))));
+    body.appendChild(h('div', h('div.row.between.mb-8', h('span.eyebrow', 'Likely questions'), h('span.tiny.muted', `${prep.questions.length} questions`)),
+      h('div.col.gap-8', prep.questions.map((q, i) => h('div.prep-q' + (q.category === 'gap' ? '.gap' : ''),
+        h('div.row.between', h('span.num', 'Q' + (i + 1)), h('span.chip' + (q.category === 'gap' ? '.chip-warn' : ''), INTERVIEW_CATEGORIES[q.category] || 'Question')),
+        h('div.t.selectable', q.question),
+        q.why ? h('div.w', q.why) : null,
+        q.points.length ? notes(q.points) : null)))));
+    if (prep.ask.length) body.appendChild(h('div', h('div.eyebrow.mb-8', 'Questions you can ask'), h('div.prep-q', notes(prep.ask))));
+    if (prep.watch.length) body.appendChild(h('div', h('div.eyebrow.mb-8', 'Keep in mind'), h('div.prep-q', notes(prep.watch))));
+    body.appendChild(h('div.col.gap-8',
+      h('div.tiny.muted', 'The notes come from your own material. They are prompts to speak from, not answers to learn by heart.'),
+      h('div.row', h('div', { style: { width: '150px' } }, langSel), go), status));
   }
 
   function reviewTab(q) {
@@ -420,7 +488,7 @@ export async function mount$(root, params, shell) {
   function jobTab() {
     const an = (app.job && app.job.analysis) || null;
     const statusSel = h('select.select', STATUSES.map((s) => h('option', { value: s.id, selected: s.id === app.status }, s.label)));
-    statusSel.addEventListener('change', () => { app.status = statusSel.value; if (app.status === 'applied' && !app.appliedAt) app.appliedAt = isoDate(); saveApp(app); renderBar(); renderInspector(); });
+    statusSel.addEventListener('change', () => setStatus(statusSel.value));
     const applied = h('input.input', { type: 'date', value: app.appliedAt || '' });
     applied.addEventListener('change', () => { app.appliedAt = applied.value; persist(); });
     const url = h('input.input', { type: 'url', placeholder: 'https://', value: app.url || '' });

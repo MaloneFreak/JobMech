@@ -16,6 +16,10 @@ T.run('01-onboarding', async () => {
   }).map((card) => card.querySelector('.n').textContent);
   eq('no tag covers the name or description of its engine', covered, []);
 
+  byText('.onb-foot .btn', 'I already have JobMech data').click();
+  ok('someone who used JobMech before can bring the data over right away', await waitFor(() => /Used JobMech before\?/.test(($('.overlay') || {}).textContent || '') && byText('.overlay .btn', 'Choose a data folder') && byText('.overlay .btn', 'Choose a backup file')));
+  await T.dialogClick('Cancel');
+
   byText('.provopt', 'Offline test engine').click();
   ok('choosing an engine selects its model', await waitFor(() => store.state.settings.ai.models.mock === 'mock-writer'));
   byText('.onb-body .btn', 'Test connection').click();

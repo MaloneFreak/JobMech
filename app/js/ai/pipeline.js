@@ -1,7 +1,7 @@
 // The writing pipeline: analyse the job -> write the CV -> write the letter -> edit (humanize + fact check).
 // Every step validates what the AI returned; nothing is ever made up locally when a step fails.
 import { chatJson, AiError } from './client.js';
-import { analysisPrompt, cvPrompt, letterPrompt, humanizePrompt, refinePrompt, tidyPrompt } from './prompts.js';
+import { analysisPrompt, cvPrompt, letterPrompt, humanizePrompt, refinePrompt, tidyPrompt, interviewPrompt } from './prompts.js';
 import { state, memoryForAi } from '../store.js';
 import { country } from '../countries.js';
 import { normalizeLang } from '../doclang.js';
@@ -235,6 +235,65 @@ export async function refine(app, target, instruction, hooks = {}) {
   else app.letter = normalizeLetter(res, app);
   sanitizeDocs(app);
   return str(res.note);
+}
+
+// ---------------------------------------------------------------------------------- interview preparation
+
+export const INTERVIEW_CATEGORIES = {
+  motivation: 'Motivation', role: 'The role', experience: 'Your experience', gap: 'Weak spot', practical: 'Practical', behavioural: 'Behaviour',
+};
+
+export function normalizeInterview(raw, ctx = {}) {
+  const s = (v) => sanitize(str(v), ctx);
+  const notes = (v, max) => lines(v).map(s).filter(Boolean).slice(0, max);
+  const cat = (v) => {
+    const c = str(v).toLowerCase();
+    if (/^behav/.test(c)) return 'behavioural';
+    return INTERVIEW_CATEGORIES[c] ? c : 'experience';
+  };
+  return {
+    pitch: notes(raw.pitch, 5),
+    questions: arr(raw.questions).map((q) => (typeof q === 'string'
+      ? { category: 'experience', question: s(q), why: '', points: [] }
+      : { category: cat(q && q.category), question: s(q && q.question), why: s(q && q.why), points: notes(q && q.points, 5) }))
+      .filter((q) => q.question).slice(0, 14),
+    ask: notes(raw.ask, 6),
+    watch: notes(raw.watch, 5),
+  };
+}
+
+/** Predicts the interview for this application and stores the preparation on `app.interview`. */
+export async function prepareInterview(app, language, hooks = {}) {
+  const lang = language || app.language || 'en';
+  const res = await chatJson({
+    ...interviewPrompt(app, memoryForAi(), lang), signal: hooks.signal, onDelta: hooks.onDelta, onStatus: hooks.onStatus,
+    temperature: 0.5, effort: 'medium', task: 'interview', validate: (o) => Array.isArray(o.questions) && o.questions.length > 0,
+  });
+  const prep = normalizeInterview(res, { country: app.country, lang });
+  if (!prep.questions.length) throw new AiError('The AI returned no questions. Try again.', { kind: 'format' });
+  prep.language = lang;
+  prep.generatedAt = new Date().toISOString();
+  app.interview = prep;
+  return prep;
+}
+
+/** The preparation as plain text, for copying into notes or printing. */
+export function interviewText(app) {
+  const p = app.interview;
+  if (!p) return '';
+  const out = [`Interview preparation: ${app.title || 'Application'}${app.company ? ' at ' + app.company : ''}`, ''];
+  const block = (title, items) => { if (items.length) out.push(title, ...items.map((t) => '- ' + t), ''); };
+  block('TELL ME ABOUT YOURSELF', p.pitch);
+  out.push('LIKELY QUESTIONS');
+  p.questions.forEach((q, i) => {
+    out.push(`${i + 1}. ${q.question}`);
+    if (q.why) out.push(`   Why they ask: ${q.why}`);
+    for (const pt of q.points) out.push('   - ' + pt);
+  });
+  out.push('');
+  block('QUESTIONS YOU CAN ASK', p.ask);
+  block('KEEP IN MIND', p.watch);
+  return out.join('\n').trim() + '\n';
 }
 
 /** Turns raw question/answer pairs in memory into clean standalone facts and known gaps. */

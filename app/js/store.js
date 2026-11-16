@@ -32,6 +32,7 @@ export function defaultSettings() {
     docs: { palette: 'navy', font: 'calibri', density: 'normal', enDash: false },
     memory: { autoSave: true },
     export: { lastDir: '' },
+    updates: { check: true, lastCheck: '', latest: '', url: '' },
   };
 }
 

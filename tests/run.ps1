@@ -69,6 +69,27 @@ try {
   & "$root\package.ps1" -OutDir "$work\stage" -NoZip | Out-Null
   Check 'the program builds from source' (Test-Path "$work\stage\JobMech\JobMech.exe")
 
+  # ---------------------------------------------------------------- where the data would live
+  # Asked with --print-data-dir, which only reports: no window opens and nothing is created.
+  if (-not $Only) {
+    $exe = "$work\stage\JobMech\JobMech.exe"
+    function Where-Data([string[]]$extra) {
+      $out = "$work\where.txt"
+      Remove-Item $out -ErrorAction SilentlyContinue
+      $p = Start-Process $exe -ArgumentList (@("`"--print-data-dir=$out`"") + $extra) -PassThru
+      [void]$p.WaitForExit(10000)
+      if (Test-Path $out) { return (Get-Content $out -Raw).Trim() } else { return '' }
+    }
+    $userDir = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'JobMech\data'
+    $existed = Test-Path $userDir
+    Check 'a fresh copy keeps its data in the user profile' ((Where-Data @()) -eq "user|$userDir")
+    Check 'asking where the data lives creates nothing' ((Test-Path $userDir) -eq $existed)
+    New-Item -ItemType Directory -Force "$work\stage\JobMech\data" | Out-Null
+    Check 'a data folder next to the program makes the copy portable' ((Where-Data @()) -eq "portable|$work\stage\JobMech\data")
+    Check 'an explicit data folder wins over both' ((Where-Data @("`"--data-dir=$work\elsewhere`"")) -eq "custom|$work\elsewhere" -and -not (Test-Path "$work\elsewhere"))
+    Remove-Item "$work\stage\JobMech\data" -Recurse -Force
+  }
+
   $fake = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$here\fake-ai.ps1`"", '-Port', ($Port + 1) -WindowStyle Hidden -PassThru
 
   # ---------------------------------------------------------------- a brand-new data folder
@@ -76,7 +97,7 @@ try {
   $data = "$work\data-fresh"
   $app = Start-App $data
   Cdp "window.__fakeAiPort = $($Port + 1)" | Out-Null
-  foreach ($f in Get-ChildItem "$here\suites\0[1-8]-*.js" | Sort-Object Name) { Run-Suite $f.FullName }
+  foreach ($f in Get-ChildItem "$here\suites\*.js" | Where-Object { $_.Name -notlike '09-*' } | Sort-Object Name) { Run-Suite $f.FullName }
 
   if (-not $Only) {
     $second = Start-Process "$work\stage\JobMech\JobMech.exe" -ArgumentList "`"--data-dir=$data`"" -PassThru

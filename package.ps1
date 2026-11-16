@@ -26,6 +26,7 @@ try {
     /win32manifest:src\app.manifest /win32icon:src\JobMech.ico "/resource:src\JobMech.ico,JobMech.ico" `
     /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll `
     /r:System.Web.dll /r:System.Web.Extensions.dll /r:System.Security.dll `
+    /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
     /r:Microsoft.Web.WebView2.Core.dll /r:Microsoft.Web.WebView2.WinForms.dll `
     src\Program.cs src\MainForm.cs src\Services.cs
   if ($LASTEXITCODE -ne 0) { throw 'BUILD FAILED' }

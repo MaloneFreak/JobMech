@@ -6,6 +6,7 @@ import { app as hostApp } from './host.js';
 import { activeConfig, readiness } from './ai/client.js';
 import { country } from './countries.js';
 import { relTime } from './util.js';
+import { checkForUpdate, available } from './update.js';
 
 const views = {
   compose: () => import('./views/compose.js'),
@@ -49,7 +50,7 @@ export async function navigate(name, params = {}) {
   $view.style.animation = '';
   try {
     const mod = await views[name]();
-    shell.cleanup = (await mod.mount($view, params, { navigate, refreshAi })) || null;
+    shell.cleanup = (await mod.mount($view, params, { navigate, refreshAi, refreshSide: renderSide })) || null;
   } catch (e) {
     console.error(e);
     hostApp.log('ERROR', `View ${name} failed: ${e && e.stack ? e.stack : e}`);
@@ -95,6 +96,7 @@ function renderSide() {
   const aiLabel = cfg.p ? cfg.p.name : 'AI not set up';
   const aiSub = cfg.p ? (cfg.model || 'no model chosen') : 'Click to choose an engine';
   const aiDot = shell.aiOk && shell.aiOk.ok ? 'ok' : 'warn';
+  const up = available();
 
   mount($side,
     h('div.brand', h('img', { src: 'assets/icon-256.png', alt: '' }), h('div.txt', h('div.name', 'JobMech'), h('div.ver', 'v' + (state.info.version || '2')))),
@@ -107,6 +109,8 @@ function renderSide() {
     state.apps.length > 6 ? h('div.side-search', search) : null,
     h('div.app-list', items.length ? items : h('div.empty-list', state.apps.length ? 'No match.' : 'Your applications will appear here.')),
     h('div.side-foot',
+      up ? h('button.update-chip', { onclick: () => hostApp.openExternal(up.url), title: `JobMech ${up.version} is available. Click to open the download page.` },
+        ic('download', 15), h('div.txt.grow', h('div.a.ellipsis', `Version ${up.version} is available`), h('div.b.ellipsis', 'Open the download page'))) : null,
       h('button.ai-chip', { onclick: () => navigate('settings', { tab: 'ai' }), title: shell.aiOk && !shell.aiOk.ok ? shell.aiOk.reason : 'AI engine' },
         h('span.dot.' + aiDot),
         h('div.txt.grow', h('div.a.ellipsis', aiLabel), h('div.b.ellipsis', aiSub)))));
@@ -147,6 +151,8 @@ async function boot() {
     }
     await navigate('compose');
     window.__jobmechReady = true;
+    // Quietly, at most once a day, and never in developer mode (the tests stay offline).
+    if (!state.info.dev) checkForUpdate().then(() => renderSide()).catch(() => {});
   } catch (e) {
     console.error(e);
     hostApp.log('FATAL', 'Boot failed: ' + (e && e.stack ? e.stack : e));

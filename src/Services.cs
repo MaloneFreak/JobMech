@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -25,6 +26,7 @@ namespace JobMech
         private readonly Dictionary<string, HttpWebRequest> activeHttp = new Dictionary<string, HttpWebRequest>();
         private readonly HashSet<string> approvedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> approvedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> approvedSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public Services(MainForm form)
         {
@@ -102,7 +104,11 @@ namespace JobMech
                 case "secrets.delete": secrets.Delete(S(p, "name")); return true;
 
                 case "dialog.save": return DialogSave(p);
+                case "dialog.open": return DialogOpen(p);
                 case "dialog.folder": return DialogFolder(p);
+
+                case "data.export": return DataExport(p);
+                case "data.import": return DataImport(p);
 
                 case "fs.write": return FsWrite(p);
                 case "fs.exists": return File.Exists(S(p, "path")) || Directory.Exists(S(p, "path"));
@@ -129,6 +135,8 @@ namespace JobMech
                 "dev", Program.DevMode,
                 "baseDir", Program.BaseDir,
                 "dataDir", Program.DataDir,
+                "dataMode", Program.DataMode,
+                "userDataDir", Program.UserDataDir,
                 "downloadsDir", KnownFolders.Downloads(),
                 "documentsDir", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 "desktopDir", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
@@ -289,12 +297,225 @@ namespace JobMech
             }
         }
 
+        private object DialogOpen(Dictionary<string, object> p)
+        {
+            using (OpenFileDialog d = new OpenFileDialog())
+            {
+                string ext = S(p, "ext", "zip").TrimStart('.');
+                d.Title = S(p, "title", "Open");
+                d.Filter = S(p, "filterName", ext.ToUpperInvariant() + " file") + " (*." + ext + ")|*." + ext;
+                d.CheckFileExists = true;
+                string dir = S(p, "dir");
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) d.InitialDirectory = dir;
+                if (d.ShowDialog(form) != DialogResult.OK) return Obj("cancelled", true);
+                approvedSources.Add(Path.GetFullPath(d.FileName));
+                return Obj("cancelled", false, "path", d.FileName);
+            }
+        }
+
         private object DialogFolder(Dictionary<string, object> p)
         {
             string chosen = FolderPicker.Show(form.Handle, S(p, "title", "Choose a folder"), S(p, "dir"));
             if (string.IsNullOrEmpty(chosen)) return Obj("cancelled", true);
             approvedDirs.Add(Path.GetFullPath(chosen).TrimEnd('\\'));
             return Obj("cancelled", false, "path", chosen);
+        }
+
+        // ------------------------------------------------------------ backup and restore of the data folder
+
+        private static readonly string[] DataMarkers = { "settings.json", "profile.json", "memory.md" };
+
+        /// <summary>
+        /// Parts of the data folder that belong to this PC or this Windows account and therefore
+        /// stay out of a backup and survive a restore: the browser profile, logs, earlier safety
+        /// copies, test output, the encrypted API keys and the window position.
+        /// </summary>
+        private static bool StaysLocal(string rel)
+        {
+            rel = rel.Replace('\\', '/').TrimStart('/');
+            string first = rel.Split('/')[0].ToLowerInvariant();
+            if (first == ".webview" || first == "logs" || first == "backups" || first == "dev-out") return true;
+            string name = rel.Substring(rel.LastIndexOf('/') + 1).ToLowerInvariant();
+            return name == "secrets.dat" || name == "window.json" || name == ".port" ||
+                   name.Contains(".tmp-") || name.StartsWith(".write-test-") || name.EndsWith(".part");
+        }
+
+        private static bool HasData(string dir)
+        {
+            foreach (string m in DataMarkers) if (File.Exists(Path.Combine(dir, m))) return true;
+            return false;
+        }
+
+        private static void CollectFiles(string root, string dir, List<string> into)
+        {
+            foreach (string f in Directory.GetFiles(dir))
+            {
+                string rel = f.Substring(root.Length + 1);
+                if (!StaysLocal(rel)) into.Add(rel);
+            }
+            foreach (string d in Directory.GetDirectories(dir))
+            {
+                if (!StaysLocal(d.Substring(root.Length + 1) + "/x")) CollectFiles(root, d, into);
+            }
+        }
+
+        private static int WriteBackup(string dataDir, string zipPath)
+        {
+            List<string> files = new List<string>();
+            CollectFiles(dataDir, dataDir, files);
+            Directory.CreateDirectory(Path.GetDirectoryName(zipPath));
+            string tmp = zipPath + ".part";
+            if (File.Exists(tmp)) File.Delete(tmp);
+            using (FileStream fs = new FileStream(tmp, FileMode.CreateNew))
+            using (ZipArchive zip = new ZipArchive(fs, ZipArchiveMode.Create))
+            {
+                foreach (string rel in files)
+                {
+                    string full = Path.Combine(dataDir, rel);
+                    ZipArchiveEntry e = zip.CreateEntry(rel.Replace('\\', '/'), CompressionLevel.Optimal);
+                    e.LastWriteTime = File.GetLastWriteTime(full);
+                    using (Stream es = e.Open())
+                    using (FileStream src = new FileStream(full, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        src.CopyTo(es);
+                }
+            }
+            if (File.Exists(zipPath)) File.Delete(zipPath);
+            File.Move(tmp, zipPath);
+            return files.Count;
+        }
+
+        private object DataExport(Dictionary<string, object> p)
+        {
+            string path = RequireWritable(S(p, "path"));
+            int n;
+            try { n = WriteBackup(Program.DataDir, path); }
+            catch (IOException) { throw new UserException("The backup could not be written there. Choose another folder."); }
+            catch (UnauthorizedAccessException) { throw new UserException("Windows did not allow saving to that folder. Choose another one."); }
+            return Obj("path", path, "files", n, "size", new FileInfo(path).Length);
+        }
+
+        /// <summary>A backup file or another data folder may only be read after the user chose it in a dialog.</summary>
+        private string RequireSource(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) throw new UserException("Nothing was chosen.");
+            string full = Path.GetFullPath(path).TrimEnd('\\');
+            if (approvedSources.Contains(full) || approvedDirs.Contains(full)) return full;
+            if (Program.DevMode && Program.CustomDataDir &&
+                full.StartsWith(Path.Combine(Program.DataDir, "dev-out") + "\\", StringComparison.OrdinalIgnoreCase)) return full;
+            throw new UserException("Choose the backup file or folder first.");
+        }
+
+        /// <summary>
+        /// Replaces the data folder with the content of a backup file (.zip) or of another JobMech
+        /// data folder (version 1 folders included: they are converted on the next start).
+        /// The source is first copied completely to a temporary place and checked; what is in
+        /// use now is saved to backups\ before anything is replaced.
+        /// </summary>
+        private object DataImport(Dictionary<string, object> p)
+        {
+            string src = RequireSource(S(p, "path"));
+            string data = Program.DataDir;
+            string stage = Path.Combine(Path.GetTempPath(), "jobmech-import-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+            Directory.CreateDirectory(stage);
+            try
+            {
+                int staged = 0;
+                if (Directory.Exists(src))
+                {
+                    string root = src;
+                    if (!HasData(root) && HasData(Path.Combine(root, "data"))) root = Path.Combine(root, "data");
+                    if (!HasData(root)) throw new UserException("That folder does not contain JobMech data. Choose the \"data\" folder of your other JobMech copy.");
+                    if (string.Equals(Path.GetFullPath(root).TrimEnd('\\'), data, StringComparison.OrdinalIgnoreCase))
+                        throw new UserException("That is the folder JobMech is already using.");
+                    List<string> files = new List<string>();
+                    CollectFiles(root, root, files);
+                    foreach (string rel in files)
+                    {
+                        string dest = Path.Combine(stage, rel);
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                        File.Copy(Path.Combine(root, rel), dest, true);
+                        staged++;
+                    }
+                }
+                else if (File.Exists(src))
+                {
+                    try
+                    {
+                        using (ZipArchive zip = ZipFile.OpenRead(src))
+                        {
+                            // the data may sit at the top of the archive or inside one folder of it
+                            string prefix = null;
+                            foreach (ZipArchiveEntry e in zip.Entries)
+                            {
+                                string name = e.FullName.Replace('\\', '/');
+                                string file = name.Substring(name.LastIndexOf('/') + 1).ToLowerInvariant();
+                                if (Array.IndexOf(DataMarkers, file) < 0) continue;
+                                string dir = name.Substring(0, name.Length - file.Length);
+                                if (prefix == null || dir.Length < prefix.Length) prefix = dir;
+                            }
+                            if (prefix == null) throw new UserException("This file does not contain JobMech data.");
+                            string stageRoot = stage + "\\";
+                            foreach (ZipArchiveEntry e in zip.Entries)
+                            {
+                                string name = e.FullName.Replace('\\', '/');
+                                if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || name.EndsWith("/")) continue;
+                                string rel = name.Substring(prefix.Length);
+                                if (rel.Length == 0 || StaysLocal(rel)) continue;
+                                string dest = Path.GetFullPath(Path.Combine(stage, rel.Replace('/', '\\')));
+                                if (!dest.StartsWith(stageRoot, StringComparison.OrdinalIgnoreCase)) continue;   // never write outside
+                                Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                                using (Stream es = e.Open())
+                                using (FileStream fs = new FileStream(dest, FileMode.Create))
+                                    es.CopyTo(fs);
+                                staged++;
+                            }
+                        }
+                    }
+                    catch (InvalidDataException) { throw new UserException("This file is not a readable backup."); }
+                }
+                else throw new UserException("That file or folder is no longer there.");
+
+                if (staged == 0 || !HasData(stage)) throw new UserException("Nothing usable was found there.");
+
+                // keep what is in use now, then replace it
+                string safety = "";
+                if (HasData(data))
+                {
+                    string dir = Path.Combine(data, "backups");
+                    string stamp = "before-restore-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    safety = Path.Combine(dir, stamp + ".zip");
+                    for (int i = 2; File.Exists(safety); i++) safety = Path.Combine(dir, stamp + "-" + i + ".zip");
+                    WriteBackup(data, safety);
+                    string[] old = Directory.GetFiles(dir, "before-restore-*.zip");
+                    Array.Sort(old);
+                    for (int i = 0; i < old.Length - 5; i++) { try { File.Delete(old[i]); } catch { } }
+                }
+                List<string> current = new List<string>();
+                CollectFiles(data, data, current);
+                foreach (string rel in current) File.Delete(Path.Combine(data, rel));
+                foreach (string d in Directory.GetDirectories(data))
+                {
+                    if (StaysLocal(d.Substring(data.Length + 1) + "/x")) continue;
+                    try { Directory.Delete(d, true); } catch { }
+                }
+                List<string> incoming = new List<string>();
+                CollectFiles(stage, stage, incoming);
+                foreach (string rel in incoming)
+                {
+                    string dest = Path.Combine(data, rel);
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                    File.Copy(Path.Combine(stage, rel), dest, true);
+                }
+                Log.Write("INFO", "Data replaced from " + (Directory.Exists(src) ? "a folder" : "a backup file") + ": " + incoming.Count + " files.");
+                return Obj("files", incoming.Count, "safety", safety);
+            }
+            catch (UserException) { throw; }
+            catch (IOException ex) { throw new UserException("The data could not be copied: " + ex.Message); }
+            catch (UnauthorizedAccessException) { throw new UserException("Windows did not allow reading that file or folder."); }
+            finally
+            {
+                try { Directory.Delete(stage, true); } catch { }
+            }
         }
 
         /// <summary>Files may only be written where the user pointed a dialog during this session.</summary>

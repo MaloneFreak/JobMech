@@ -19,6 +19,9 @@ export async function mount$(root, params, shell) {
     if (id === 'applied' && !app.appliedAt) app.appliedAt = isoDate();
     await saveApp(app);
     draw();
+    if (id === 'interview' && !app.interview && app.cv && app.letter) {
+      toast('An interview coming up? JobMech can prepare you for it.', { type: 'info', ms: 9000, action: { label: 'Prepare', fn: () => shell.navigate('studio', { id: app.id, tab: 'interview' }) } });
+    }
   }
 
   async function del(a) {

@@ -365,6 +365,70 @@ Return the complete updated ${what} as ONE JSON object with exactly the same key
   return { system: header(app), user };
 }
 
+// ------------------------------------------------------------------------------------ interview preparation
+
+export function interviewPrompt(app, memory, language) {
+  const ct = country(app.country);
+  const cv = app.cv || {};
+  const letter = app.letter || {};
+  const system = `You are JobMech's interview coach: a hiring manager with many years of job interviews in ${ct.name} behind you. You prepare one candidate for one specific interview. You predict what this employer will ask and you show the candidate which of their own real experiences answer it.
+
+${TRUTH}
+
+Return ONE JSON object and nothing else: no commentary, no markdown fences.`;
+  const user = `TODAY: ${isoDate()}
+TARGET JOB: ${jobLine(app)}
+MARKET: ${ct.name}
+WRITE IN: ${languageDirective({ country: app.country, language, languageName: app.languageName })}
+
+JOB POSTING
+"""
+${(app.job && app.job.text) || '(not available)'}
+"""
+
+${analysisBlock(app)}
+
+CANDIDATE MATERIAL (the only source of truth)
+"""
+${memory}
+"""
+
+THE CANDIDATE'S ANSWERS FOR THIS APPLICATION
+${answersBlock(app)}
+
+WHAT THE EMPLOYER HAS ALREADY READ
+CV profile: ${cv.summary || '(none)'}
+Cover letter:
+${(letter.paragraphs || []).join('\n') || '(none)'}
+
+TASK
+The candidate has been invited to an interview for this job. Prepare them.
+1. "pitch": how to answer "tell me about yourself" in about one minute, as 3 or 4 short notes in speaking order: who they are now, the experience that matters most for this job, why this employer.
+2. "questions": the 10 to 12 questions this employer is most likely to ask, most likely first. Cover all of these:
+   - motivation: why this employer, why this role, why now;
+   - role: the main tasks named in the posting;
+   - experience: something the employer read in the CV or the letter and will want to hear more about;
+   - gap: every requirement marked [partial] or [missing] above. An interviewer probes exactly there;
+   - practical: start date, hours, place of work, work permit, and salary expectation where that is usual in ${ct.name};
+   - behavioural: two "tell me about a time when" questions typical for this kind of role.
+   For each question give "why" (what the interviewer wants to find out, at most 14 words) and "points": 2 to 4 short notes the candidate can speak from. Every note must rest on a specific real experience, number or fact from the material, with the employer or project named. For a behavioural question give the situation, what the candidate did and the result, as far as the material tells it. Where the material holds no answer, say so plainly in a note and add what the candidate could honestly say, or what they should think through before the interview. Never write a note that claims something the material does not support, and never turn a known gap into a strength.
+3. "ask": 4 or 5 questions the candidate could put to the interviewer. They must be specific to this posting and employer and must not be answered in the posting already.
+4. "watch": 2 to 4 short tips for this interview: the weak spots to be ready for, a custom of job interviews in ${ct.name} worth knowing, something to check or bring.
+
+Notes are notes, not scripts: short phrases the candidate will say in their own words. No buzzwords, no self-praise without evidence, no em dashes or en dashes, no markdown.
+
+OUTPUT (JSON)
+{
+  "pitch": ["note"],
+  "questions": [
+    { "category": "motivation, role, experience, gap, practical or behavioural", "question": "the question as the interviewer would ask it", "why": "what they want to find out", "points": ["note"] }
+  ],
+  "ask": ["question for the interviewer"],
+  "watch": ["tip"]
+}`;
+  return { system, user };
+}
+
 // ------------------------------------------------------------------------------------ memory tidy-up
 
 export function tidyPrompt(items) {
