@@ -66,13 +66,37 @@ function imageRun(wMm, hMm) {
     + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
 }
 
-async function photoInfo(dataUrl) {
+const PHOTO_BOX = { tabular: [33, 43], gutter: [25, 31], sidebar: [38, 48], classic: [30, 39] };
+
+async function photoInfo(dataUrl, box) {
   if (!dataUrl) return null;
   try {
     const img = new Image();
     img.src = dataUrl;
     await img.decode();
-    return { bytes: base64ToBytes(dataUrl.slice(dataUrl.indexOf(',') + 1)), ratio: img.naturalWidth / img.naturalHeight };
+    const [wMm, hMm] = box || PHOTO_BOX.tabular;
+    const natRatio = img.naturalWidth / img.naturalHeight;
+    const targetRatio = wMm / hMm;
+    // Keep the original JPEG bytes untouched when the stored photo already matches the frame
+    // (standard 7:9 portraits). Re-crop on canvas only if a legacy or odd-ratio photo would
+    // otherwise blow up vertically or distort in Word.
+    if (Math.abs(natRatio - targetRatio) / targetRatio <= 0.08 && /^data:image\/jpe?g;/i.test(dataUrl)) {
+      return { bytes: base64ToBytes(dataUrl.slice(dataUrl.indexOf(',') + 1)), wMm, hMm: wMm / natRatio };
+    }
+    const W = Math.round(wMm * 18);
+    const H = Math.round(hMm * 18);
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+    let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+    if (natRatio > targetRatio) { sw = img.naturalHeight * targetRatio; sx = (img.naturalWidth - sw) / 2; }
+    else { sh = img.naturalWidth / targetRatio; sy = (img.naturalHeight - sh) * 0.22; }
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+    const jpg = cv.toDataURL('image/jpeg', 0.92);
+    return { bytes: base64ToBytes(jpg.slice(jpg.indexOf(',') + 1)), wMm, hMm };
   } catch { return null; }
 }
 
@@ -165,7 +189,7 @@ function cvBody(W, c, photo) {
       + (meta.length ? W.p(W.r(meta.join('  ·  '), { color: INK2, size: W.base * 0.92 }), { before: 20 }) : '');
     if (photo) {
       const pw = TW(35);
-      out.push(W.tbl([W.tr([W.tc(headText, textW - pw), W.tc(W.p(imageRun(33, 33 / photo.ratio), { align: 'right' }), pw)])], [textW - pw, pw]));
+      out.push(W.tbl([W.tr([W.tc(headText, textW - pw), W.tc(W.p(imageRun(photo.wMm, photo.hMm), { align: 'right' }), pw)])], [textW - pw, pw]));
     } else out.push(headText);
     out.push(W.p('', { border: { sz: 12, color: W.P, space: 1 }, line: 120, before: 40 }));
     for (const sec of secs) {
@@ -184,7 +208,7 @@ function cvBody(W, c, photo) {
     const wC = TW(62);
     const cells = [W.tc(left, textW - wC - pw, { valign: 'bottom' }), W.tc(right, wC, { valign: 'bottom' })];
     const widths = [textW - wC - pw, wC];
-    if (photo) { cells.push(W.tc(W.p(imageRun(25, 25 / photo.ratio), { align: 'right' }), pw, { valign: 'bottom' })); widths.push(pw); }
+    if (photo) { cells.push(W.tc(W.p(imageRun(photo.wMm, photo.hMm), { align: 'right' }), pw, { valign: 'bottom' })); widths.push(pw); }
     out.push(W.tbl([W.tr(cells)], widths));
     out.push(W.p('', { border: { sz: 6, color: INK, space: 1 }, line: 120, before: 60 }));
     for (const sec of secs) {
@@ -197,7 +221,7 @@ function cvBody(W, c, photo) {
     const wS = TW(58), wM = textW - wS;
     const sideHead = (t) => W.p(W.r(t, { b: true, caps: true, color: W.P, size: W.base * 0.86, track: 20, head: true }), { before: 260, after: 70, border: { sz: 4, color: W.S } });
     let side = '';
-    if (photo) side += W.p(imageRun(38, 38 / photo.ratio), { align: 'center', after: 60 });
+    if (photo) side += W.p(imageRun(photo.wMm, photo.hMm), { align: 'center', after: 60 });
     side += sideHead(L.contact) + contact.map((t) => W.p(W.r(t, { color: INK2, size: W.base * 0.93 }), { before: 50 })).join('');
     side += model.personalItems(c).map(([k, v]) => W.p([W.r(k + ': ', { color: INK3, size: W.base * 0.86 }), W.r(v, { color: INK2, size: W.base * 0.93 })], { before: 50 })).join('');
     if ((cv.languages || []).length) side += sideHead(L.languages) + cv.languages.map((l) => W.p([W.r(l.name, { size: W.base * 0.93 }), l.level ? W.r('  ' + l.level, { color: INK3, size: W.base * 0.93 }) : ''], { before: 50 })).join('');
@@ -218,11 +242,15 @@ function cvBody(W, c, photo) {
   } else {
     margins = [14, 17, 13, 17];
     const textW = TW(pg.w - 34);
-    const center = c.fam.header === 'center' ? 'center' : null;
-    out.push(W.p(W.r(name, { b: true, color: W.P, size: W.base * (center ? 1.95 : 2.15), caps: !!center, track: center ? 24 : 0, head: true }), { align: center, line: 240 }));
-    if (cv.headline) out.push(W.p(W.r((c.ct.family === 'br' ? L.objective + ': ' : '') + cv.headline, { b: true, color: W.S, size: W.base * 1.08 }), { align: center, before: 50 }));
-    out.push(W.p(W.r(contact.join('  ·  '), { color: INK2, size: W.base * 0.95 }), { align: center, before: 90 }));
-    if (meta.length) out.push(W.p(W.r(meta.join('  ·  '), { color: INK3, size: W.base * 0.92 }), { align: center, before: 20 }));
+    const center = !photo && c.fam.header === 'center' ? 'center' : null;
+    const headText = W.p(W.r(name, { b: true, color: W.P, size: W.base * (center ? 1.95 : 2.15), caps: !!center, track: center ? 24 : 0, head: true }), { align: center, line: 240 })
+      + (cv.headline ? W.p(W.r((c.ct.family === 'br' ? L.objective + ': ' : '') + cv.headline, { b: true, color: W.S, size: W.base * 1.08 }), { align: center, before: 50 }) : '')
+      + W.p(W.r(contact.join('  ·  '), { color: INK2, size: W.base * 0.95 }), { align: center, before: 90 })
+      + (meta.length ? W.p(W.r(meta.join('  ·  '), { color: INK3, size: W.base * 0.92 }), { align: center, before: 20 }) : '');
+    if (photo) {
+      const pw = TW(33);
+      out.push(W.tbl([W.tr([W.tc(headText, textW - pw), W.tc(W.p(imageRun(photo.wMm, photo.hMm), { align: 'right' }), pw)])], [textW - pw, pw]));
+    } else out.push(headText);
     out.push(W.p('', { border: { sz: 10, color: W.P, space: 1 }, line: 120, before: 40 }));
     for (const sec of secs) out.push(...flowSection(W, c, sec, textW));
   }
@@ -271,7 +299,7 @@ export async function buildDocx(app, kind) {
   const c = model.context(app, { editable: false });
   const W = writer(app, kind);
   const usePhoto = kind === 'cv' && c.photo;
-  const photo = usePhoto ? await photoInfo(c.photo) : null;
+  const photo = usePhoto ? await photoInfo(c.photo, PHOTO_BOX[c.fam.layout]) : null;
   const body = kind === 'cv' ? cvBody(W, c, photo) : letterBody(W, c);
   const pg = paper(app.country);
   const [mt, mr, mb, ml] = body.margins.map(TW);

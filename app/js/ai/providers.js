@@ -18,6 +18,7 @@ export const PROVIDERS = {
     id: 'groq', name: 'Groq', kind: 'openai', key: true, tag: 'Free tier',
     base: 'https://api.groq.com/openai/v1', host: 'api.groq.com', keyUrl: 'https://console.groq.com/keys',
     blurb: 'Open models served extremely fast, with a free tier.',
+    help: 'Free-tier models enforce tight tokens-per-minute limits. JobMech automatically compacts long inputs and paces requests when needed.',
   },
   anthropic: {
     id: 'anthropic', name: 'Anthropic Claude', kind: 'anthropic', key: true, tag: 'Paid',
@@ -155,6 +156,7 @@ export function describeHttpError(status, body, name = 'The AI provider') {
   if (status === 401 || status === 403) return `${name} rejected the API key. Check it in Settings.${tail}`;
   if (status === 402) return `${name} says the account has no credit left.${tail}`;
   if (status === 404) return `${name} does not know this model. Pick another one in Settings.${tail}`;
+  if (status === 413) return `${name} rejected the request because it exceeded the model's token limit.${tail}`;
   if (status === 429) return `${name} is rate limiting requests right now. Wait a minute or pick another model.${tail}`;
   if (status >= 500) return `${name} is having trouble at the moment (error ${status}). Try again shortly.${tail}`;
   return `${name} returned an error ${status}.${tail}`;

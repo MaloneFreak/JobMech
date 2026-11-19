@@ -106,10 +106,16 @@ const between = (text, a, b) => {
 export function mockReply(o) {
   const task = o.task || '';
   if (task === 'ping') return 'OK';
+  if (task === 'digest') {
+    const chunk = between(o.user, '"""\n', '\n"""');
+    return chunk.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 12).join('\n') || 'Distilled background.';
+  }
   if (task === 'analysis') return JSON.stringify(ANALYSIS);
   if (task === 'cv') return JSON.stringify(CV);
   if (task === 'letter') return JSON.stringify(LETTER);
   if (task === 'interview') return JSON.stringify(INTERVIEW);
+  if (task === 'interview-part1') return JSON.stringify({ pitch: INTERVIEW.pitch, questions: INTERVIEW.questions.slice(0, 3) });
+  if (task === 'interview-part2') return JSON.stringify({ questions: INTERVIEW.questions.slice(3), ask: INTERVIEW.ask, watch: INTERVIEW.watch });
   if (task === 'edit') {
     let fields = {};
     try { fields = JSON.parse(between(o.user, 'to the cover letter.\n', '\n\nGo through every field')); } catch { /* ignore */ }
@@ -117,7 +123,8 @@ export function mockReply(o) {
     for (const [k, v] of Object.entries(fields)) {
       if (/Hochmotiviert /.test(v)) edits[k] = v.replace(/Hochmotiviert rund/, 'Rund');
     }
-    return JSON.stringify({ edits, notes: ['Removed the filler word "hochmotiviert" from a CV bullet: it added no fact.'] });
+    const notes = Object.keys(edits).length ? ['Removed the filler word "hochmotiviert" from a CV bullet: it added no fact.'] : [];
+    return JSON.stringify({ edits, notes });
   }
   if (task === 'refine-cv' || task === 'refine-letter') {
     let doc = {};

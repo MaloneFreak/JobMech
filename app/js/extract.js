@@ -129,6 +129,8 @@ export function normalizePhoto(file) {
       const c = document.createElement('canvas');
       c.width = W; c.height = H;
       const ctx = c.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, W, H);
       const sr = img.width / img.height;
       const dr = W / H;
       let sx = 0, sy = 0, sw = img.width, sh = img.height;
@@ -137,7 +139,7 @@ export function normalizePhoto(file) {
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
       URL.revokeObjectURL(url);
-      resolve(c.toDataURL('image/jpeg', 0.9));
+      resolve(c.toDataURL('image/jpeg', 0.92));
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('That image could not be opened. Use a JPG or PNG file.')); };
     img.src = url;

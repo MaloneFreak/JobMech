@@ -95,6 +95,56 @@ T.run('08-formats-and-rules', async () => {
   const before = store.state.memory.facts.length;
   eq('a fact already in memory is not stored twice', [store.addFacts('Test', [{ fact: store.state.memory.facts[0].fact.toUpperCase() + ' ' }]), store.state.memory.facts.length], [0, before]);
   eq('local model advice matches the hardware', [prov.localAdvice({ ramGb: 8, gpus: [] }), prov.localAdvice({ ramGb: 32, gpus: [{ name: 'NVIDIA GeForce RTX 4080', vramGb: 16 }] })].map((a) => [a.pick, a.weak]), [['gemma3:4b', true], ['mistral-small3.2', false]]);
-  eq('provider errors are put in plain words', [402, 404, 429, 503].map((st) => prov.describeHttpError(st, '{"error":{"message":"x"}}', 'Acme').split('.')[0]),
-    ['Acme says the account has no credit left', 'Acme does not know this model', 'Acme is rate limiting requests right now', 'Acme is having trouble at the moment (error 503)']);
+  eq('provider errors are put in plain words', [402, 404, 413, 429, 503].map((st) => prov.describeHttpError(st, '{"error":{"message":"x"}}', 'Acme').split('.')[0]),
+    ['Acme says the account has no credit left', 'Acme does not know this model', "Acme rejected the request because it exceeded the model's token limit", 'Acme is rate limiting requests right now', 'Acme is having trouble at the moment (error 503)']);
+
+  // ---- photo clipping guard across all 4 layouts with long residence permit & URLs
+  const ctxMod = await mod('ai/context.js');
+  const stage = document.getElementById('stage');
+  const savedProf = u.clone(store.state.profile);
+  const clipIssues = [];
+  try {
+    store.state.profile.workPermit = 'Student residence permit (§16b AufenthG) with work authorization, valid until March 2027';
+    store.state.profile.street = 'Maximilian-von-Montgelas-Strasse 148, Apartment 4B';
+    store.state.profile.linkedin = 'https://www.linkedin.com/in/lena-brandt-controlling-analytics-hamburg-2027';
+    for (const [code, lang] of [['DE', 'en'], ['NL', 'en'], ['FR', 'fr'], ['BR', 'pt']]) {
+      const a = u.clone(base);
+      Object.assign(a, { country: code, language: lang });
+      a.cv.personal = Object.assign({}, a.cv.personal, { permit: store.state.profile.workPermit });
+      a.design = Object.assign({}, a.design, { photo: true });
+      const res = renderDoc(a, 'cv', { editable: false, photo: true });
+      stage.replaceChildren(res.pages[0]);
+      const page = res.pages[0];
+      const img = page.querySelector('.d-photo');
+      const box = page.classList.contains('lay-sidebar') ? page.querySelector('.d-side') : page.querySelector('.sheet-body');
+      const ir = img && img.getBoundingClientRect();
+      const br = box && box.getBoundingClientRect();
+      if (!ir || !br || ir.width < 20 || ir.right > br.right + 1 || ir.left < br.left - 1) {
+        clipIssues.push(`${code}: photo clipped`);
+      }
+      if (box && box.scrollWidth > box.clientWidth + 2) clipIssues.push(`${code}: horizontal overflow`);
+    }
+  } finally {
+    stage.replaceChildren();
+    Object.assign(store.state.profile, savedProf);
+  }
+  eq('long residence permit and URLs never clip the CV photo in any layout', clipIssues, []);
+
+  // ---- token optimization and lossless compaction
+  const rawJob = 'Apply now\nSave job\n\nSenior Analyst\nMunich, DE\n\nTasks:\n- Build KPI reports in Power BI\n\nApply now\n\nEqual opportunity employer without regard to race, color, religion.';
+  const cleanedJob = ctxMod.cleanJobText(rawJob, 60);
+  ok('job cleaner strips chrome and preserves core tasks', !/Apply now|Save job/.test(cleanedJob) && cleanedJob.includes('Build KPI reports in Power BI'), cleanedJob);
+
+  const dupStory = 'Hansa Freight (2024-2026)\nBuilt monthly cost reports in Excel with pivot tables.\nBuilt monthly cost reports in Excel with pivot tables.\nBuilt monthly cost reports in Excel with pivot tables for 14 cost centres.';
+  const cleanedStory = ctxMod.cleanStoryText(dupStory);
+  ok('story cleaner drops pure duplicates while keeping lines with new numbers', cleanedStory.split('\n').length === 3 && cleanedStory.includes('14 cost centres'), cleanedStory);
+
+  const comp = ctxMod.compactMemory({
+    profile: { fullName: 'Lena Brandt', email: 'lena@example.com', phone: '+49 123', street: 'Secret Str 1', location: 'Hamburg', workPermit: 'EU citizen' },
+    story: dupStory,
+    facts: [{ fact: 'Reports covered 14 cost centres.' }],
+    gaps: ['No SAP FI/CO experience'],
+  }, { task: 'cv', jobText: cleanedJob, maxTokens: 500 });
+  ok('compacted memory omits contact PII while preserving verified facts and known gaps', !comp.includes('lena@example.com') && !comp.includes('Secret Str 1') && comp.includes('14 cost centres') && comp.includes('No SAP FI/CO experience'), comp);
+  ok('marketBrief separates CV and cover-letter conventions', c.marketBrief('DE', 'cv').includes('Lebenslauf') && !c.marketBrief('DE', 'cv').includes('Anschreiben') && c.marketBrief('DE', 'letter').includes('Anschreiben') && !c.marketBrief('DE', 'letter').includes('Lebenslauf'));
 });

@@ -350,18 +350,20 @@ export async function mount$(root, params, shell) {
     }
 
     const hum = h('button.btn.btn-sm', ic('wand', 14), 'Humanize again');
+    const humStatus = h('span.tiny.muted');
     hum.addEventListener('click', async () => {
       const ready = await readiness();
       if (!ready.ok) { toast(ready.reason, { type: 'bad' }); return; }
       busy(hum, true, ' Editing');
+      humStatus.textContent = '';
       try {
         const before = { cv: clone(app.cv), letter: clone(app.letter) };
-        const n = await humanize(app, {});
+        const n = await humanize(app, { onStatus: (m) => { humStatus.textContent = m === 'thinking' ? 'Thinking' : m; } });
         if (n) { app.history = app.history || []; app.history.unshift({ at: new Date().toISOString(), label: 'Before humanizing', ...before }); app.history = app.history.slice(0, 8); }
         await saveApp(app);
         toast(n ? `The editor changed ${n} passage${n > 1 ? 's' : ''}.` : 'The editor found nothing to change.');
         refresh();
-      } catch (e) { toast(e.message, { type: 'bad' }); busy(hum, false); }
+      } catch (e) { toast(e.message, { type: 'bad' }); busy(hum, false); humStatus.textContent = ''; }
     });
 
     const mem = h('div.card.card-pad');
@@ -374,7 +376,7 @@ export async function mount$(root, params, shell) {
       mount(mem, h('div.small.soft.mb-8', 'What you answered for this job is not in memory yet.'), b);
     } else mount(mem, h('div.small.muted', 'Nothing new to save to memory for this job.'));
 
-    body.appendChild(h('div.row.wrap', hum));
+    body.appendChild(h('div.row.wrap', hum, humStatus));
     body.appendChild(mem);
   }
 

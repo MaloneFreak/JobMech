@@ -100,13 +100,16 @@ while ($true) {
       $answer = '{"ok":true,"model":"' + $model + '","auth":"' + (Escape-Json $auth) + '","call":' + $seen[$model] + '}'
       if ($model -eq 'fake-401') { Send-Json $stream 401 '{"error":{"message":"Invalid key"}}'; continue }
       if ($model -eq 'fake-404') { Send-Json $stream 404 '{"error":{"message":"No such model"}}'; continue }
+      if ($model -eq 'fake-413') { Send-Json $stream 413 '{"error":{"message":"Request too large for model fake-413 on tokens per minute (TPM): Limit 8000, Requested 9400."}}'; continue }
       if ($model -eq 'fake-429' -and $seen[$model] -eq 1) { Send-Json $stream 429 '{"error":{"message":"Slow down"}}' "Retry-After: 1`r`n"; continue }
       if ($model -eq 'fake-400' -and $body -match '"response_format"|"temperature"') { Send-Json $stream 400 '{"error":{"message":"Unsupported parameter"}}'; continue }
       if ($model -eq 'fake-nostream') {
         Send-Json $stream 200 ('{"choices":[{"message":{"role":"assistant","content":"' + (Escape-Json $answer) + '"},"finish_reason":"stop"}]}')
         continue
       }
-      Send-Raw $stream "HTTP/1.1 200 OK`r`nContent-Type: text/event-stream`r`nCache-Control: no-cache`r`nConnection: close`r`n`r`n"
+      $rateHdr = ''
+      if ($model -eq 'fake-groq-headers') { $rateHdr = "x-ratelimit-limit-tokens: 6000`r`nx-ratelimit-remaining-tokens: 5400`r`nx-ratelimit-reset-tokens: 500ms`r`n" }
+      Send-Raw $stream "HTTP/1.1 200 OK`r`nContent-Type: text/event-stream`r`nCache-Control: no-cache`r`n${rateHdr}Connection: close`r`n`r`n"
       if ($model -eq 'fake-slow') {
         for ($i = 0; $i -lt 100; $i++) {
           Send-Raw $stream ('data: {"choices":[{"delta":{"content":"tick "}}]}' + "`n`n")

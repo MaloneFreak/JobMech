@@ -1,6 +1,6 @@
 // The instructions given to the AI. Everything that makes the documents truthful, market-specific
 // and human-sounding lives here, in plain language, so it can be tuned without touching code.
-import { country } from '../countries.js';
+import { country, marketBrief } from '../countries.js';
 import { langName, LABEL_KEYS, englishLabels } from '../doclang.js';
 import { isoDate } from '../util.js';
 
@@ -30,24 +30,35 @@ const TRUTH = `GROUND RULES (they outrank every other instruction)
 4. Numbers. Only numbers that appear in the material, with the candidate's own hedges kept ("about", "estimated", "over").
 5. Never output placeholders such as [Company], [Address] or "XYZ". If something is unknown, leave the field empty.`;
 
-const STYLE = `VOICE: the text must read as written by the candidate, never by an AI
+const BANNED_BY_LANG = {
+  en: 'passionate, proven track record, results-driven, dynamic, fast-paced, leverage, utilize, spearhead, orchestrate, synergy, seamless, cutting-edge, robust, delve, testament, tapestry, "I am excited to apply", "I am writing to express my interest", "I believe I would be a great fit", "hit the ground running", "team player", "think outside the box"',
+  de: 'hochmotiviert, leidenschaftlich, dynamisch, "teamfähig und belastbar", "hiermit bewerbe ich mich", "mit großem Interesse habe ich", "über den Tellerrand", "ich brenne für" (and English buzzwords such as passionate, dynamic, leverage, utilize)',
+  pt: '"apaixonado por", "proativo e dinâmico", "sólida experiência", "venho por meio desta", "perfil hands-on", "foco em resultados" (and equivalents such as passionate, leverage)',
+  fr: 'passionné, dynamique et motivé, "force de proposition", "c\'est avec un vif intérêt", "vivement intéressé" (and equivalents such as passionate, leverage)',
+  es: 'apasionado, proactivo, "me dirijo a ustedes", "sólida experiencia", "orientado a resultados" (and equivalents such as passionate, leverage)',
+};
+
+function styleBlock(lang) {
+  const examples = BANNED_BY_LANG[lang] || 'passionate, proven track record, results-driven, dynamic, leverage, utilize, spearhead, seamless, "I am excited to apply", "team player", and their equivalents in the document language';
+  return `VOICE: the text must read as written by the candidate, never by an AI
 - No em dashes and no en dashes anywhere. Use commas, full stops, colons or parentheses.
-- No stock phrases or buzzwords, in any language. Examples of what is banned: passionate, proven track record, results-driven, dynamic, fast-paced, leverage, utilize, spearhead, orchestrate, synergy, seamless, cutting-edge, robust, delve, testament, tapestry, "I am excited to apply", "I am writing to express my interest", "I believe I would be a great fit", "hit the ground running", "team player", "think outside the box". German: hochmotiviert, leidenschaftlich, dynamisch, "teamfähig und belastbar", "hiermit bewerbe ich mich", "mit großem Interesse habe ich", "über den Tellerrand". Portuguese: "apaixonado por", "proativo e dinâmico", "sólida experiência", "venho por meio desta", "perfil hands-on". French: passionné, dynamique et motivé, "force de proposition", "c'est avec un vif intérêt". Spanish: apasionado, proactivo, "me dirijo a ustedes". The same goes for their equivalents in any other language.
+- No stock phrases or buzzwords. Examples of what is banned: ${examples}.
 - Every sentence must carry a fact about this candidate or this employer. Delete sentences that would fit any applicant.
 - No lists of three for rhythm, no "not only ... but also", no rhetorical questions, no exclamation marks, no emojis, no markdown, no quotation marks around ordinary words.
 - Plain verbs and concrete nouns before adjectives. Vary sentence length. Prefer the ordinary word: "used" over "utilized", "helped" over "facilitated", "led" over "spearheaded".
 - Do not praise the employer in general terms. If you mention the employer, refer to something specific from the posting.`;
+}
 
-function header(app) {
+function header(app, kind = 'both') {
   const ct = country(app.country);
   return `You are JobMech's writer: an experienced recruiter and CV writer for the job market of ${ct.name}. You turn a candidate's raw material into application documents that a hiring manager in ${ct.name} reads as the work of a careful, competent person.
 
 ${TRUTH}
 
-${STYLE}
+${styleBlock(app.language)}
 
 MARKET CONVENTIONS
-${ct.brief}
+${marketBrief(ct, kind)}
 
 LANGUAGE
 Write every text value in ${languageDirective(app)}. Translate job titles, duties and descriptions into that language. Keep company names, product and tool names, and official names of degrees and certificates in their original form (add a short gloss in parentheses when a degree name would not be understood).
@@ -151,7 +162,7 @@ function cvBudget(app) {
   return `The CV must fit on ${ct.cvPages > 2 ? 'two to three pages' : 'two pages at the very most, one page if the career is short'}: at most 20 bullets in total, each at most 24 words, and a profile of at most 55 words.`;
 }
 
-export function cvPrompt(app, memory) {
+export function cvPrompt(app, memory, opts = {}) {
   const ct = country(app.country);
   const needLabels = app.language === 'other';
   const labelSpec = needLabels
@@ -160,6 +171,7 @@ export function cvPrompt(app, memory) {
   const labelTask = needLabels
     ? `\n9. "labels": translate each English label value into ${languageDirective(app)} the way a native CV in ${ct.name} would word it. Keep the keys unchanged.`
     : '';
+  const jobText = opts.jobText != null ? opts.jobText : app.job.text;
   const user = `TODAY: ${isoDate()}
 TARGET JOB: ${jobLine(app)}
 DOCUMENT LANGUAGE: ${languageDirective(app)}
@@ -167,7 +179,7 @@ LENGTH: ${cvBudget(app)}
 
 JOB POSTING
 """
-${app.job.text}
+${jobText}
 """
 
 WHAT THE ANALYSIS FOUND
@@ -213,12 +225,12 @@ OUTPUT (JSON)
   "facts": [""],
   "gaps": [""]${labelSpec}
 }`;
-  return { system: header(app), user };
+  return { system: header(app, 'cv'), user };
 }
 
 // ------------------------------------------------------------------------------------ cover letter
 
-function compactCv(cv) {
+export function compactCv(cv) {
   if (!cv) return '(none)';
   const lines = [];
   if (cv.headline) lines.push('Headline: ' + cv.headline);
@@ -233,7 +245,7 @@ function compactCv(cv) {
   return lines.join('\n');
 }
 
-export function letterPrompt(app, memory, profile) {
+export function letterPrompt(app, memory, profile, opts = {}) {
   const ct = country(app.country);
   const j = (app.job.analysis && app.job.analysis.job) || {};
   const [lo, hi] = ct.letterWords;
@@ -241,6 +253,7 @@ export function letterPrompt(app, memory, profile) {
     ? `The posting names a contact person: ${j.contactPerson}. Greeting to use: ${j.contactSalutation || '(derive the correct formal greeting for this person)'}`
     : 'The posting names no contact person. Use the correct generic greeting for this market and language.';
   const address = (j.address || []).length ? j.address.join(' / ') : '(not stated in the posting: leave it out)';
+  const jobText = opts.jobText != null ? opts.jobText : app.job.text;
   const user = `TODAY: ${isoDate()}
 TARGET JOB: ${jobLine(app)}
 DOCUMENT LANGUAGE: ${languageDirective(app)}
@@ -255,7 +268,7 @@ ${compactCv(app.cv)}
 
 JOB POSTING
 """
-${app.job.text}
+${jobText}
 """
 
 WHAT THE ANALYSIS FOUND
@@ -287,20 +300,25 @@ OUTPUT (JSON)
   "closing": "closing formula with the punctuation this market uses, without the name",
   "enclosures": "the customary enclosures line for this market in the document language (for example 'Anlagen: Lebenslauf' in Germany), or empty where it is not customary"
 }`;
-  return { system: header(app), user };
+  return { system: header(app, 'letter'), user };
 }
 
 // ------------------------------------------------------------------------------------ humanizer / fact check
 
-export function humanizePrompt(app, memory, fields) {
+export function humanizePrompt(app, memory, fields, opts = {}) {
   const ct = country(app.country);
+  const scope = opts.scope === 'cv' || opts.scope === 'letter' ? opts.scope : 'all';
+  const briefKind = scope === 'cv' ? 'cv' : scope === 'letter' ? 'letter' : 'both';
+  const cvRef = scope === 'letter' && app.cv
+    ? `\nTHE CV THAT GOES WITH THIS LETTER (stay consistent with it)\n"""\n${compactCv(app.cv)}\n"""\n`
+    : '';
   const system = `You are JobMech's final editor: a strict human copy editor. You make application documents sound like their author, and you check every claim against the candidate's own material.
 
 Return ONE JSON object and nothing else: no commentary, no markdown fences.`;
   const user = `MARKET: ${ct.name}
 DOCUMENT LANGUAGE: ${languageDirective(app)}
 TARGET JOB: ${jobLine(app)}
-
+${cvRef}
 CANDIDATE MATERIAL (the only source of truth)
 """
 ${memory}
@@ -310,10 +328,10 @@ THE CANDIDATE'S ANSWERS FOR THIS APPLICATION
 ${answersBlock(app)}
 
 MARKET CONVENTIONS
-${ct.brief}
+${marketBrief(ct, briefKind)}
 
 TEXT FIELDS TO REVIEW (JSON: field id -> text). Fields starting with "cv." belong to the CV, "letter." to the cover letter.
-${JSON.stringify(fields, null, 1)}
+${JSON.stringify(fields)}
 
 Go through every field and change it only when one of these applies:
 (a) FACT: it states something the material does not support: an invented or altered number, tool, duty, title, date or language level, or a known gap presented as a skill. Rewrite it to what the material supports. If a CV bullet has no factual basis at all, return an empty string for it, which deletes it.
@@ -326,24 +344,25 @@ Keep the meaning, every supported fact and number, and the length (never more th
 OUTPUT (JSON)
 {
   "edits": { "field id": "new text" },
-  "notes": ["one short English sentence per change of substance, saying what was changed and why; at most 8"]
+  "notes": ["one short English sentence per change of substance, saying what was changed and why; at most ${scope === 'all' ? 8 : 5}"]
 }`;
   return { system, user };
 }
 
 // ------------------------------------------------------------------------------------ refine on request
 
-export function refinePrompt(app, memory, target, instruction, doc) {
+export function refinePrompt(app, memory, target, instruction, doc, opts = {}) {
   const what = target === 'cv' ? 'CV' : 'COVER LETTER';
+  const jobText = opts.jobText != null ? opts.jobText : app.job.text;
   const user = `TARGET JOB: ${jobLine(app)}
 DOCUMENT LANGUAGE: ${languageDirective(app)}
 
 CURRENT ${what} (JSON)
-${JSON.stringify(doc, null, 1)}
+${JSON.stringify(doc)}
 
 JOB POSTING (context)
 """
-${app.job.text}
+${jobText}
 """
 
 CANDIDATE MATERIAL
@@ -362,28 +381,31 @@ ${instruction}
 Apply the request. Change only what it requires and keep everything else word for word. All ground rules still hold: if the request could only be met by inventing facts, do not invent; go as far as the material allows.
 
 Return the complete updated ${what} as ONE JSON object with exactly the same keys and structure as the current one, plus a key "note": one English sentence saying what you changed, or why you could not.`;
-  return { system: header(app), user };
+  return { system: header(app, target), user };
 }
 
 // ------------------------------------------------------------------------------------ interview preparation
 
-export function interviewPrompt(app, memory, language) {
+export function interviewPrompt(app, memory, language, opts = {}) {
   const ct = country(app.country);
   const cv = app.cv || {};
   const letter = app.letter || {};
+  const part = opts.part === 'part1' || opts.part === 'part2' ? opts.part : 'all';
+  const jobText = opts.jobText != null ? opts.jobText : ((app.job && app.job.text) || '(not available)');
   const system = `You are JobMech's interview coach: a hiring manager with many years of job interviews in ${ct.name} behind you. You prepare one candidate for one specific interview. You predict what this employer will ask and you show the candidate which of their own real experiences answer it.
 
 ${TRUTH}
 
 Return ONE JSON object and nothing else: no commentary, no markdown fences.`;
-  const user = `TODAY: ${isoDate()}
+
+  const commonContext = `TODAY: ${isoDate()}
 TARGET JOB: ${jobLine(app)}
 MARKET: ${ct.name}
 WRITE IN: ${languageDirective({ country: app.country, language, languageName: app.languageName })}
 
 JOB POSTING
 """
-${(app.job && app.job.text) || '(not available)'}
+${jobText}
 """
 
 ${analysisBlock(app)}
@@ -399,9 +421,55 @@ ${answersBlock(app)}
 WHAT THE EMPLOYER HAS ALREADY READ
 CV profile: ${cv.summary || '(none)'}
 Cover letter:
-${(letter.paragraphs || []).join('\n') || '(none)'}
+${(letter.paragraphs || []).join('\n') || '(none)'}`;
 
-TASK
+  const noteRules = `For each question give "why" (what the interviewer wants to find out, at most 14 words) and "points": 2 to 4 short notes the candidate can speak from. Every note must rest on a specific real experience, number or fact from the material, with the employer or project named. For a behavioural question give the situation, what the candidate did and the result, as far as the material tells it. Where the material holds no answer, say so plainly in a note and add what the candidate could honestly say, or what they should think through before the interview. Never write a note that claims something the material does not support, and never turn a known gap into a strength.
+
+Notes are notes, not scripts: short phrases the candidate will say in their own words. No buzzwords, no self-praise without evidence, no em dashes or en dashes, no markdown.`;
+
+  let taskBlock;
+  if (part === 'part1') {
+    taskBlock = `TASK (PART 1 OF 2)
+The candidate has been invited to an interview for this job. Prepare the opening pitch and the first 6 most likely questions.
+1. "pitch": how to answer "tell me about yourself" in about one minute, as 3 or 4 short notes in speaking order: who they are now, the experience that matters most for this job, why this employer.
+2. "questions": 6 questions this employer is most likely to ask first, covering:
+   - motivation: why this employer, why this role, why now;
+   - role: the main tasks named in the posting;
+   - experience: something the employer read in the CV or the letter and will want to hear more about;
+   - gap: the main [missing] or [partial] requirements above.
+${noteRules}
+
+OUTPUT (JSON)
+{
+  "pitch": ["note"],
+  "questions": [
+    { "category": "motivation, role, experience or gap", "question": "the question as the interviewer would ask it", "why": "what they want to find out", "points": ["note"] }
+  ]
+}`;
+  } else if (part === 'part2') {
+    const existing = (opts.existingQuestions || []).length
+      ? `\nQUESTIONS ALREADY PREPARED IN PART 1 (do not repeat these):\n${opts.existingQuestions.map((q) => '- ' + q).join('\n')}\n`
+      : '';
+    taskBlock = `TASK (PART 2 OF 2)${existing}
+Finish preparing the candidate for this interview with the remaining questions, questions to ask, and key reminders.
+1. "questions": 5 to 6 NEW questions not listed above, covering:
+   - gap: any remaining [partial] or [missing] requirement not already asked;
+   - practical: start date, hours, place of work, work permit, and salary expectation where that is usual in ${ct.name};
+   - behavioural: two "tell me about a time when" questions typical for this kind of role.
+${noteRules}
+2. "ask": 4 or 5 questions the candidate could put to the interviewer. They must be specific to this posting and employer and must not be answered in the posting already.
+3. "watch": 2 to 4 short tips for this interview: the weak spots to be ready for, a custom of job interviews in ${ct.name} worth knowing, something to check or bring.
+
+OUTPUT (JSON)
+{
+  "questions": [
+    { "category": "gap, practical or behavioural", "question": "the question as the interviewer would ask it", "why": "what they want to find out", "points": ["note"] }
+  ],
+  "ask": ["question for the interviewer"],
+  "watch": ["tip"]
+}`;
+  } else {
+    taskBlock = `TASK
 The candidate has been invited to an interview for this job. Prepare them.
 1. "pitch": how to answer "tell me about yourself" in about one minute, as 3 or 4 short notes in speaking order: who they are now, the experience that matters most for this job, why this employer.
 2. "questions": the 10 to 12 questions this employer is most likely to ask, most likely first. Cover all of these:
@@ -411,11 +479,9 @@ The candidate has been invited to an interview for this job. Prepare them.
    - gap: every requirement marked [partial] or [missing] above. An interviewer probes exactly there;
    - practical: start date, hours, place of work, work permit, and salary expectation where that is usual in ${ct.name};
    - behavioural: two "tell me about a time when" questions typical for this kind of role.
-   For each question give "why" (what the interviewer wants to find out, at most 14 words) and "points": 2 to 4 short notes the candidate can speak from. Every note must rest on a specific real experience, number or fact from the material, with the employer or project named. For a behavioural question give the situation, what the candidate did and the result, as far as the material tells it. Where the material holds no answer, say so plainly in a note and add what the candidate could honestly say, or what they should think through before the interview. Never write a note that claims something the material does not support, and never turn a known gap into a strength.
+${noteRules}
 3. "ask": 4 or 5 questions the candidate could put to the interviewer. They must be specific to this posting and employer and must not be answered in the posting already.
 4. "watch": 2 to 4 short tips for this interview: the weak spots to be ready for, a custom of job interviews in ${ct.name} worth knowing, something to check or bring.
-
-Notes are notes, not scripts: short phrases the candidate will say in their own words. No buzzwords, no self-praise without evidence, no em dashes or en dashes, no markdown.
 
 OUTPUT (JSON)
 {
@@ -426,6 +492,26 @@ OUTPUT (JSON)
   "ask": ["question for the interviewer"],
   "watch": ["tip"]
 }`;
+  }
+
+  return { system, user: `${commonContext}\n\n${taskBlock}` };
+}
+
+// ------------------------------------------------------------------------------------ lossless story distillation
+
+/** Condenses one chunk of a very large candidate background into dense plain-text facts with zero fact loss. */
+export function digestPrompt(chunk, index = 1, total = 1) {
+  const system = `You condense a job candidate's raw notes and earlier documents into a dense, lossless factual summary. Never invent, alter, round or drop any real fact, employer, job title, date, degree, grade, tool, skill qualifier, language level, work permit, availability or number. Return plain text only (no markdown fences, no commentary).`;
+  const user = `PART ${index} OF ${total} OF CANDIDATE MATERIAL
+"""
+${chunk}
+"""
+
+Condense this part into tight, scannable plain-text bullets:
+1. Keep EVERY employer, role, location, exact date range (month and year), responsibility, outcome, degree, institution, grade, project, tool/software, certification, language + level, work permit/visa, availability and interest.
+2. Keep EVERY number, percentage, count and hedge ("about", "roughly", "over") verbatim.
+3. Remove duplicate statements, generic filler prose, and greetings/closings/flattery from old cover letters addressed to other employers (keep only factual claims about what the candidate actually did).
+4. Write compact factual lines (e.g. "EMPLOYER | ROLE | YYYY-MM to YYYY-MM | CITY" followed by "- short factual bullet"). Stay under 45% of the input length where possible without losing a single fact.`;
   return { system, user };
 }
 
@@ -435,7 +521,7 @@ export function tidyPrompt(items) {
   const system = `You tidy a job seeker's private notes. Return ONE JSON object and nothing else.`;
   const user = `Below are questions a career assistant asked a candidate and the candidate's raw answers.
 
-${JSON.stringify(items, null, 1)}
+${JSON.stringify(items)}
 
 For each item write "fact": one standalone English sentence stating what the answer establishes, with the employer, project, tool or number named, so that it still makes sense in a year without the question. Do not add anything the answer does not say. If the answer establishes nothing usable, return an empty string.
 Separately collect "gaps": things the candidate says they have NOT done or do not have, as short noun phrases (for example "No experience with Jira, Azure DevOps or Trello").

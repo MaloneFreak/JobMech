@@ -34,15 +34,19 @@
 .d-headline { color: var(--s); font-weight: 600; }
 .d-contact { color: var(--ink2); }
 .sheet .ci { white-space: nowrap; }
+.sheet .d-meta .ci, .sheet .ci.wrap { white-space: normal; overflow-wrap: break-word; }
+.sheet .ci.wrap-anywhere { white-space: normal; overflow-wrap: anywhere; }
 .sheet .sep { color: var(--ink3); padding: 0 .12em 0 .42em; }
 .d-meta { color: var(--ink3); }
-.d-photo { display: block; object-fit: cover; background: var(--t); }
+.d-photo { display: block; object-fit: cover; object-position: center 20%; background: var(--t); flex-shrink: 0; max-width: 100%; }
+.sheet .d-head, .sheet .d-head > *, .sheet .d-row > *, .sheet .d-eh .l1 > * { min-width: 0; }
 /* Headings keep tight tracking on purpose: wide letter-spacing makes PDF text extractors (and the
    applicant tracking systems built on them) read "BERUF S ERFAHRUNG" instead of the word. */
 .d-sec { font-family: var(--fh); font-weight: 700; color: var(--p); text-transform: uppercase; letter-spacing: .045em; font-size: .92em; }
 .d-role { font-weight: 700; color: var(--ink); }
 .d-org { color: var(--ink2); }
 .d-period { color: var(--s); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.sheet .d-eh .d-period { flex-shrink: 0; }
 /* Bullets are real characters in normal flow (no positioning), so the PDF keeps them in reading order. */
 .d-bullet { padding-left: 1.05em; text-indent: -1.05em; }
 .d-bullet::before { content: "\2022"; display: inline-block; width: 1.05em; text-indent: 0; text-align: center; color: var(--s); }
@@ -56,15 +60,15 @@
 
 /* ================================================================ TABULAR (Germany, Austria, Switzerland) */
 .lay-tabular { padding: 15mm 18mm 13mm 20mm; }
-.lay-tabular .d-head { display: grid; grid-template-columns: 1fr auto; column-gap: 8mm; align-items: start; padding-bottom: 1em; border-bottom: .55mm solid var(--p); }
+.lay-tabular .d-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8mm; align-items: start; padding-bottom: 1em; border-bottom: .55mm solid var(--p); }
 .lay-tabular .d-doc { font: 700 .84em var(--fh); letter-spacing: .05em; text-transform: uppercase; color: var(--s); margin-bottom: .35em; }
 .lay-tabular .d-name { font-size: 2.3em; }
 .lay-tabular .d-headline { font-size: 1.14em; margin-top: .3em; }
 .lay-tabular .d-contact { margin-top: .7em; font-size: .95em; line-height: 1.45; }
 .lay-tabular .d-meta { margin-top: .15em; font-size: .92em; line-height: 1.45; color: var(--ink2); }
-.lay-tabular .d-photo { width: calc(33mm * var(--k)); height: calc(43mm * var(--k)); border-radius: .8mm; }
+.lay-tabular .d-photo { width: calc(33mm * var(--k)); height: calc(43mm * var(--k)); border-radius: .8mm; justify-self: end; }
 .lay-tabular .d-sec { margin-top: 1.25em; padding-bottom: .28em; border-bottom: .25mm solid var(--rule); margin-bottom: .55em; }
-.lay-tabular .d-row { display: grid; grid-template-columns: 34mm 1fr; column-gap: 5mm; }
+.lay-tabular .d-row { display: grid; grid-template-columns: 34mm minmax(0, 1fr); column-gap: 5mm; }
 .lay-tabular .d-row.first { margin-top: .62em; }
 .lay-tabular .d-sec + .d-row.first { margin-top: 0; }
 .lay-tabular .d-l { font-size: .95em; }
@@ -81,7 +85,9 @@
 /* ================================================================ CLASSIC (US, Canada, UK, Ireland, Australia, Brazil) */
 .lay-classic { padding: 14mm 17mm 13mm; }
 .lay-classic .d-head { padding-bottom: .75em; border-bottom: .45mm solid var(--p); }
-.lay-classic.hd-center .d-head { text-align: center; }
+.lay-classic .d-head.has-photo { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 7mm; align-items: start; text-align: left; }
+.lay-classic.hd-center .d-head:not(.has-photo) { text-align: center; }
+.lay-classic .d-photo { width: calc(30mm * var(--k)); height: calc(39mm * var(--k)); border-radius: .8mm; justify-self: end; }
 .lay-classic .d-name { font-size: 2.15em; }
 .lay-classic.hd-center .d-name { text-transform: uppercase; letter-spacing: .03em; font-size: 1.95em; }
 .lay-classic .d-headline { font-size: 1.08em; margin-top: .3em; }
@@ -99,16 +105,17 @@
 .lay-classic .d-consent { margin-top: 1.2em; }
 
 /* ================================================================ SIDEBAR (France, Belgium, Spain, Italy, Portugal, Poland) */
-.lay-sidebar { display: grid; grid-template-columns: 62mm 1fr; }
-.lay-sidebar .d-side { background: var(--t); padding: 14mm 7mm 12mm 9mm; overflow: hidden; }
+.lay-sidebar { display: grid; grid-template-columns: 62mm minmax(0, 1fr); }
+.lay-sidebar .d-side { background: var(--t); padding: 14mm 7mm 12mm 9mm; min-width: 0; overflow: hidden; }
 .lay-sidebar .d-mainc { padding: 14mm 15mm 12mm 9mm; min-width: 0; height: 100%; overflow: hidden; }
-.lay-sidebar .d-photo { width: 38mm; height: 48mm; border-radius: 1.2mm; margin: 0 auto 1.4em; }
+.lay-sidebar .d-photo { width: calc(38mm * var(--k)); height: calc(48mm * var(--k)); border-radius: 1.2mm; margin: 0 auto 1.4em; }
 .lay-sidebar .d-side .d-sec { font-size: .88em; margin: 1.5em 0 .5em; padding-bottom: .25em; border-bottom: .25mm solid color-mix(in srgb, var(--p) 28%, transparent); }
 .lay-sidebar .d-side .d-sec:first-child { margin-top: 0; }
 .lay-sidebar .d-side .d-item { font-size: .93em; margin-top: .32em; color: var(--ink2); overflow-wrap: anywhere; }
 .lay-sidebar .d-side .d-item .k { display: block; font-size: .84em; color: var(--ink3); }
-.lay-sidebar .d-side .d-lang { display: flex; justify-content: space-between; gap: .6em; font-size: .93em; margin-top: .3em; }
-.lay-sidebar .d-side .d-lang .lv { color: var(--ink3); text-align: right; }
+.lay-sidebar .d-side .d-lang { display: flex; justify-content: space-between; gap: .6em; font-size: .93em; margin-top: .3em; min-width: 0; }
+.lay-sidebar .d-side .d-lang > span { min-width: 0; overflow-wrap: break-word; }
+.lay-sidebar .d-side .d-lang .lv { color: var(--ink3); text-align: right; flex-shrink: 0; }
 .lay-sidebar .d-side .d-skillg { font-size: .93em; margin-top: .5em; color: var(--ink2); }
 .lay-sidebar .d-side .d-skillg .d-lbl { display: block; }
 .lay-sidebar .d-name { font-size: 2.35em; }
@@ -125,14 +132,15 @@
 
 /* ================================================================ GUTTER (Netherlands, Nordics, international) */
 .lay-gutter { padding: 15mm 18mm 13mm; }
-.lay-gutter .d-head { display: grid; grid-template-columns: 1fr auto auto; column-gap: 7mm; align-items: end; padding-bottom: .9em; border-bottom: .3mm solid var(--ink); }
+.lay-gutter .d-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 66mm); column-gap: 7mm; align-items: end; padding-bottom: .9em; border-bottom: .3mm solid var(--ink); }
+.lay-gutter .d-head.has-photo { grid-template-columns: minmax(0, 1fr) minmax(0, 62mm) auto; }
 .lay-gutter .d-name { font-size: 2.3em; font-weight: 700; }
 .lay-gutter .d-headline { font-size: 1.08em; margin-top: .3em; }
 .lay-gutter .d-contact { text-align: right; font-size: .93em; line-height: 1.45; }
-.lay-gutter .d-contact div { white-space: nowrap; }
+.lay-gutter .d-contact div { white-space: normal; overflow-wrap: anywhere; }
 .lay-gutter .d-meta { font-size: .9em; }
-.lay-gutter .d-photo { width: 25mm; height: 31mm; border-radius: .8mm; }
-.lay-gutter .d-row { display: grid; grid-template-columns: 35mm 1fr; column-gap: 5mm; }
+.lay-gutter .d-photo { width: calc(25mm * var(--k)); height: calc(31mm * var(--k)); border-radius: .8mm; justify-self: end; }
+.lay-gutter .d-row { display: grid; grid-template-columns: 35mm minmax(0, 1fr); column-gap: 5mm; }
 .lay-gutter .d-row.secstart { margin-top: 1.15em; padding-top: 0; }
 .lay-gutter .d-row.first { margin-top: .6em; }
 .lay-gutter .d-row.secstart.first { margin-top: 1.15em; }

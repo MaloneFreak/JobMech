@@ -320,22 +320,24 @@ function buildCv(c, variant) {
   const headline = cv.headline ? div('d-headline', cv.headline, E('cv.headline')) : null;
 
   if (lay === 'tabular') {
-    const head = div('d-head');
+    const ph = photoEl(c);
+    const head = div(ph ? 'd-head has-photo' : 'd-head');
     const main = div();
     add(main, div('d-doc', L.cv), name, headline, joinInline(div('d-contact'), contactItems(c, c.ct.address)), metaLine(c));
-    add(head, main, photoEl(c));
+    add(head, main, ph);
     return { blocks: [head, ...rowBlocks(c, secs, 'tabular'), ...tailBlocks(c)] };
   }
 
   if (lay === 'gutter') {
-    const head = div('d-head');
+    const ph = photoEl(c);
+    const head = div(ph ? 'd-head has-photo' : 'd-head');
     const left = div();
     add(left, name, headline);
     const contact = div('d-contact');
     for (const it of contactItems(c, false)) add(contact, add(div(), linked(it)));
     const meta = personalItems(c);
     for (const [k, v] of meta) add(contact, div('d-meta', `${k}: ${v}`));
-    add(head, left, contact, photoEl(c));
+    add(head, left, contact, ph);
     return { blocks: [head, ...rowBlocks(c, secs, 'gutter'), ...tailBlocks(c)] };
   }
 
@@ -377,14 +379,17 @@ function buildCv(c, variant) {
   }
 
   // classic
-  const head = div('d-head');
-  add(head, name);
+  const ph = photoEl(c);
+  const head = div(ph ? 'd-head has-photo' : 'd-head');
+  const target = ph ? div() : head;
+  add(target, name);
   if (c.ct.family === 'br' && headline) {
     const o = div('d-headline');
     add(o, document.createTextNode(L.objective + ': '), span(null, cv.headline, E('cv.headline')));
-    head.appendChild(o);
-  } else if (headline) head.appendChild(headline);
-  add(head, joinInline(div('d-contact'), contactItems(c, false)), metaLine(c));
+    target.appendChild(o);
+  } else if (headline) target.appendChild(headline);
+  add(target, joinInline(div('d-contact'), contactItems(c, false)), metaLine(c));
+  if (ph) add(head, target, ph);
   return { blocks: [head, ...flowBlocks(c, secs), ...tailBlocks(c)] };
 }
 
@@ -465,6 +470,7 @@ function paginate(stage, blocks, newPage) {
   pages.push(page);
   for (const b of blocks) {
     page.body.appendChild(b);
+    if (b.classList.contains('d-head') || b.classList.contains('lt-head')) tidySeparators(b);
     if (page.body.scrollHeight > page.body.clientHeight + 1 && page.body.childElementCount > 1) {
       const carry = [b];
       page.body.removeChild(b);
@@ -482,18 +488,38 @@ function paginate(stage, blocks, newPage) {
   return pages;
 }
 
-/** A separator dot left dangling at the end of a wrapped line is hidden. */
+const firstRect = (el) => el.getClientRects()[0] || el.getBoundingClientRect();
+const lastRect = (el) => { const r = el.getClientRects(); return r.length ? r[r.length - 1] : el.getBoundingClientRect(); };
+
+/**
+ * Ensures long contact/meta items wrap instead of pushing photos out of the header, and hides
+ * any separator dot left dangling at the end of a wrapped line.
+ */
 function tidySeparators(root) {
   for (const line of root.querySelectorAll('.d-contact, .d-meta, .lt-contact')) {
+    const maxW = line.getBoundingClientRect().width;
     const items = [...line.children].filter((n) => n.classList.contains('ci'));
+    if (maxW > 0) {
+      for (const it of items) {
+        it.classList.remove('wrap', 'wrap-anywhere');
+        if (it.getBoundingClientRect().width > maxW + 1) {
+          it.classList.add('wrap');
+          if (it.getBoundingClientRect().width > maxW + 1) it.classList.add('wrap-anywhere');
+        }
+      }
+    }
     items.forEach((it, i) => {
       const sep = it.querySelector('.sep');
       const next = items[i + 1];
       if (!sep || !next) return;
       sep.style.display = '';
-      if (next.offsetTop > it.offsetTop) {
+      const sr = sep.getBoundingClientRect();
+      const nr = firstRect(next);
+      if (sr.height && nr.top > sr.top + sr.height * 0.5) {
         sep.style.display = 'none';
-        if (next.offsetTop <= it.offsetTop) sep.style.display = '';
+        const pr = lastRect(it);
+        const nr2 = firstRect(next);
+        if (pr.height && nr2.top <= pr.top + pr.height * 0.5) sep.style.display = '';
       }
     });
   }

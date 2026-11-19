@@ -65,6 +65,16 @@ T.run('07-ai-network', async () => {
     await use('custom', 'fake-404');
     await throws('an unknown model is explained', () => client.chat({ system: 's', user: 'u' }), /does not know this model/);
 
+    await use('custom', 'fake-413');
+    let err413 = null;
+    const t413 = performance.now();
+    try { await client.chat({ system: 's', user: 'u' }); } catch (e) { err413 = e; }
+    ok('a 413 token-limit error is flagged as too_large immediately without sleeping', err413 && err413.kind === 'too_large' && err413.tokenLimit === 8000 && err413.requestedTokens === 9400 && performance.now() - t413 < 1500, err413);
+
+    await use('custom', 'fake-groq-headers');
+    await client.chat({ system: 's', user: 'u' });
+    eq('token limits advertised in response headers are learned live', client.learnedLimitFor(client.activeConfig()), 6000);
+
     await use('custom', 'fake-slow');
     const ctrl = new AbortController();
     const started = performance.now();
@@ -84,6 +94,7 @@ T.run('07-ai-network', async () => {
     await use('ollama', 'fake-local:latest');
     eq('an Ollama answer is assembled from its stream', JSON.parse((await client.chat({ system: 's', user: 'u', json: true })).text), { engine: 'ollama', ok: true });
   } finally {
+    client.resetRateState();
     await host.secrets.remove('custom').catch(() => {});
     s.ai = keep;
     await store.saveSettings();
