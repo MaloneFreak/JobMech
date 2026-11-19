@@ -14,14 +14,14 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("JobMech")]
 [assembly: AssemblyCompany("JobMech")]
 [assembly: AssemblyCopyright("JobMech")]
-[assembly: AssemblyVersion("2.1.0.0")]
-[assembly: AssemblyFileVersion("2.1.0.0")]
+[assembly: AssemblyVersion("2.1.1.0")]
+[assembly: AssemblyFileVersion("2.1.1.0")]
 
 namespace JobMech
 {
     static class Program
     {
-        public const string AppVersion = "2.1.0";
+        public const string AppVersion = "2.1.1";
         public const string AppHost = "app.jobmech.example";
         public const string AppOrigin = "https://app.jobmech.example";
 
